@@ -1,437 +1,766 @@
-<!DOCTYPE html><html lang="en"><head>  <meta charset="UTF-8"><meta
-name="viewport"
-content="width=device-width, initial-scale=1.0"
-
-«»
-
-  <title>FundsIQ - More</title>  <link
-    rel="stylesheet"
-    href="more.css"
-  >  <link
-    rel="stylesheet"
-    href="components.css"
-  ></head><body><div class="dashboard-wrapper">  <div class="container"><h2 class="section-title">
-  More Features
-</h2>
-
-
-<main class="action-grid">
-
-
-  <!-- Become a Marketer -->
-
-  <div
-    class="grid-card"
-    onclick="window.location.href='marketer.html'"
-  >
-
-    <div class="grid-icon neon-gold">
+import { auth, db } from "./firebase.js";
 
-      <svg
-        width="32"
-        height="32"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
+import {
+onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-        <path
-          d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"
-        ></path>
+import {
+doc,
+getDoc,
+updateDoc,
+increment
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
-        <path
-          d="M19 10v2a7 7 0 0 1-14 0v-2"
-        ></path>
+/* =========================================================================
+FUNDSIQ API
+========================================================================= */
 
-        <line
-          x1="12"
-          y1="19"
-          x2="12"
-          y2="22"
-        ></line>
+const API_URL =
+"https://fundsiq-api.onrender.com";
 
-      </svg>
+/* =========================================================================
+GET USER DATA
+========================================================================= */
 
-    </div>
+async function getUserData() {
 
-    <h3>
-      Become a Marketer
-    </h3>
+const user = auth.currentUser;
 
-    <p>
-      Earn by referring your friends.
-    </p>
+if (!user) return null;
 
-  </div>
+try {
 
+    const userRef = doc(
+        db,
+        "users",
+        user.uid
+    );
 
-  <!-- Marketer Dashboard -->
+    const snap =
+        await getDoc(userRef);
 
-  <div
-    class="grid-card"
-    onclick="window.location.href='marketer-dashboard.html'"
-  >
+    if (!snap.exists()) {
+        return null;
+    }
 
-    <div class="grid-icon neon-blue">
+    return snap.data();
 
-      <svg
-        width="32"
-        height="32"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
+} catch (error) {
 
-        <rect
-          x="3"
-          y="3"
-          width="7"
-          height="9"
-        ></rect>
+    console.error(
+        "Error getting user data:",
+        error
+    );
 
-        <rect
-          x="14"
-          y="3"
-          width="7"
-          height="5"
-        ></rect>
+    return null;
+}
 
-        <rect
-          x="14"
-          y="12"
-          width="7"
-          height="9"
-        ></rect>
+}
 
-        <rect
-          x="3"
-          y="16"
-          width="7"
-          height="5"
-        ></rect>
+/* =========================================================================
+CHECK PREMIUM STATUS
+========================================================================= */
 
-      </svg>
+async function isPremiumUser() {
 
-    </div>
+const userData =
+    await getUserData();
 
-    <h3>
-      Marketer Dashboard
-    </h3>
+return userData?.premium === true;
 
-    <p>
-      Track referrals, earnings and withdrawals.
-    </p>
+}
 
-  </div>
+/* =========================================================================
+UPDATE PREMIUM DISPLAY
+========================================================================= */
 
-</main>
+async function updatePremiumDisplay() {
 
+const status =
+    document.getElementById(
+        "premiumStatus"
+    );
 
-<!-- Referral Banner -->
+const upgradeBtn =
+    document.getElementById(
+        "upgradeBtn"
+    );
 
-<section class="referral-banner">
+if (!status) return;
 
-  <div class="ref-content">
+const premium =
+    await isPremiumUser();
 
-    <h3>
-      Earn PSA Coins by Referring Friends
-    </h3>
+if (premium) {
 
-    <button
-      class="ref-btn"
-      type="button"
-    >
-      Learn More
-    </button>
+    status.innerText =
+        "💎 Premium Active";
 
-  </div>
+    status.classList.add(
+        "premium-active"
+    );
 
-</section>
+    if (upgradeBtn) {
 
+        upgradeBtn.innerHTML =
+            "💎 Premium Active";
 
-<!-- Micro Cards -->
+    }
 
-<div class="micro-grid">
+} else {
 
+    status.innerText =
+        "Free Account";
 
-  <div class="micro-card">
+    status.classList.remove(
+        "premium-active"
+    );
 
-    <div class="micro-text">
+    if (upgradeBtn) {
 
-      <h5>
-        Top Referrals
-      </h5>
+        upgradeBtn.innerHTML =
+            "👑 Upgrade Now";
 
-      <p>
-        See top referrers.
-      </p>
+    }
+}
 
-    </div>
+document.body.classList.toggle(
+    "is-premium",
+    premium
+);
 
-  </div>
+}
 
+/* =========================================================================
+GET COINS
+========================================================================= */
 
-  <div class="micro-card">
+async function getCoins() {
 
-    <div class="micro-text">
+const userData =
+    await getUserData();
 
-      <h5>
-        My Referrals
-      </h5>
+if (!userData) return 0;
 
-      <p>
-        Track your referrals.
-      </p>
+return userData.coins ?? 0;
 
-    </div>
+}
 
-  </div>
+/* =========================================================================
+UPDATE COIN DISPLAY
+========================================================================= */
 
+async function updateCoinDisplay() {
 
-  <div
-    class="micro-card"
-    id="share-app-btn"
-  >
+const coin =
+    document.getElementById(
+        "coinBalance"
+    );
 
-    <div class="micro-text">
+if (!coin) return;
 
-      <h5>
-        Share FundsIQ
-      </h5>
+const balance =
+    await getCoins();
 
-      <p>
-        Invite friends to study.
-      </p>
+coin.innerText =
+    balance;
 
-    </div>
+}
 
-  </div>
+/* =========================================================================
+SPEND COINS
+========================================================================= */
 
+async function spendCoins(
+amount,
+reason = "Purchase"
+) {
 
-  <div class="micro-card">
+const user =
+    auth.currentUser;
 
-    <div class="micro-text">
+if (!user) {
 
-      <h5>
-        Bookmarks
-      </h5>
+    alert(
+        "Please login first."
+    );
 
-      <p>
-        View saved notes.
-      </p>
+    return false;
+}
 
-    </div>
+const premium =
+    await isPremiumUser();
 
-  </div>
+if (premium) {
+    return true;
+}
 
-</div>
+const userRef =
+    doc(
+        db,
+        "users",
+        user.uid
+    );
 
+const snap =
+    await getDoc(userRef);
 
-<!-- PREMIUM -->
+if (!snap.exists()) {
 
-<section class="premium-card">
+    alert(
+        "User profile not found."
+    );
 
-  <div class="premium-header">
+    return false;
+}
 
-    <div class="premium-badge">
+const currentCoins =
+    snap.data().coins ?? 0;
 
-      Go Premium
-      <span>PRO</span>
+if (currentCoins < amount) {
 
-    </div>
+    alert(
 
-  </div>
+`❌ Not enough coins 🪙
 
+Need: ${amount} coins
 
-  <div
-    id="premiumStatus"
-    class="premium-status"
-  >
-    Checking Premium status...
-  </div>
+Your balance:
+${currentCoins} 🪙`
+);
 
+    return false;
+}
 
-  <p>
-    Unlock more features and remove ads.
-  </p>
+await updateDoc(
+    userRef,
+    {
+        coins:
+            increment(-amount)
+    }
+);
 
+await updateCoinDisplay();
 
-  <button
-    class="upgrade-btn"
-    id="upgradeBtn"
-    type="button"
-  >
+return true;
 
-    👑 Upgrade Now
+}
 
-  </button>
+/* =========================================================================
+REWARD COINS
+========================================================================= */
 
-</section>
+async function rewardCoins(
+amount,
+reason = "Reward"
+) {
 
+const user =
+    auth.currentUser;
 
-<!-- Footer -->
+if (!user) return false;
 
-<footer class="footer">
+try {
 
-  <p>
-    FundsIQ v1.0
-  </p>
+    const userRef =
+        doc(
+            db,
+            "users",
+            user.uid
+        );
 
-  <p>
+    await updateDoc(
+        userRef,
+        {
+            coins:
+                increment(amount)
+        }
+    );
 
-    Designed by
-    <strong>
-      Odigwe Joshua ✓
-    </strong>
+    await updateCoinDisplay();
 
-  </p>
+    alert(
 
-</footer>
+`🎉 +${amount} Coins
 
-  </div></div><!-- ==========================================
-     PREMIUM ACTIVE MODAL
-     ========================================== --><div
-  id="premiumModal"
-  class="premium-modal"
-  aria-hidden="true"
->  <div
-    id="premiumModalOverlay"
-    class="premium-modal-overlay"
-  ></div>  <div
-    class="premium-modal-box"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="premiumModalTitle"
-  ><!-- Close -->
+${reason}`
+);
 
-<button
-  id="premiumModalClose"
-  class="premium-modal-close"
-  type="button"
-  aria-label="Close"
->
-  ×
-</button>
+    return true;
 
+} catch (error) {
 
-<!-- Premium Icon -->
+    console.error(
+        "Reward coins error:",
+        error
+    );
 
-<div class="premium-modal-icon">
-  💎
-</div>
+    return false;
+}
 
+}
 
-<!-- Small Label -->
+/* =========================================================================
+PREMIUM MODAL
+========================================================================= */
 
-<div class="premium-modal-label">
-  PREMIUM
-</div>
+function openPremiumModal() {
 
+const modal =
+    document.getElementById(
+        "premiumModal"
+    );
 
-<!-- Title -->
+if (!modal) {
 
-<h2 id="premiumModalTitle">
-  Premium is Active
-</h2>
+    console.warn(
+        "premiumModal was not found."
+    );
 
+    return;
+}
 
-<!-- Description -->
+modal.classList.add(
+    "show"
+);
 
-<p class="premium-modal-description">
+modal.setAttribute(
+    "aria-hidden",
+    "false"
+);
 
-  Your FundsIQ Premium account is already active.
-  You're enjoying all available Premium benefits.
+document.body.classList.add(
+    "modal-open"
+);
 
-</p>
+}
 
+function closePremiumModal() {
 
-<!-- Benefits -->
+const modal =
+    document.getElementById(
+        "premiumModal"
+    );
 
-<div class="premium-benefits">
+if (!modal) return;
 
+modal.classList.remove(
+    "show"
+);
 
-  <div class="premium-benefit">
+modal.setAttribute(
+    "aria-hidden",
+    "true"
+);
 
-    <span class="benefit-check">
-      ✓
-    </span>
+document.body.classList.remove(
+    "modal-open"
+);
 
-    <span>
-      Premium features unlocked
-    </span>
+}
 
-  </div>
+/* =========================================================================
+PREMIUM MODAL EVENTS
+========================================================================= */
 
+function setupPremiumModal() {
 
-  <div class="premium-benefit">
+const closeBtn =
+    document.getElementById(
+        "premiumModalClose"
+    );
 
-    <span class="benefit-check">
-      ✓
-    </span>
+const okBtn =
+    document.getElementById(
+        "premiumModalOk"
+    );
 
-    <span>
-      Ad-free experience
-    </span>
+const overlay =
+    document.getElementById(
+        "premiumModalOverlay"
+    );
 
-  </div>
 
+if (closeBtn) {
 
-  <div class="premium-benefit">
+    closeBtn.addEventListener(
+        "click",
+        closePremiumModal
+    );
 
-    <span class="benefit-check">
-      ✓
-    </span>
+}
 
-    <span>
-      Full CBT access
-    </span>
 
-  </div>
+if (okBtn) {
 
+    okBtn.addEventListener(
+        "click",
+        closePremiumModal
+    );
 
-</div>
+}
 
 
-<!-- OK Button -->
+if (overlay) {
 
-<button
-  id="premiumModalOk"
-  class="premium-modal-ok"
-  type="button"
->
+    overlay.addEventListener(
+        "click",
+        closePremiumModal
+    );
 
-  Awesome, thanks!
+}
 
-</button>
 
-  </div></div><!-- Bottom Navigation --><nav class="bottom-nav">  <div
-    class="bottom-nav-item"
-    onclick="location.href='index.html'"
-  ><span>
-  Home
-</span>
+document.addEventListener(
+    "keydown",
+    (event) => {
 
-  </div>  <div
-    class="bottom-nav-item"
-    onclick="location.href='courses.html'"
-  ><span>
-  Learn
-</span>
+        if (
+            event.key === "Escape"
+        ) {
 
-  </div>  <div
-    class="bottom-nav-item"
-    onclick="location.href='exam.html'"
-  ><span>
-  Practice
-</span>
+            closePremiumModal();
 
-  </div>  <div class="bottom-nav-item active"><span>
-  More
-</span>
+        }
 
-  </div></nav><!-- More JavaScript --><script
-  type="module"
-  src="more.js"
-></script></body></html>
+    }
+);
+
+}
+
+/* =========================================================================
+PREMIUM PAYMENT
+========================================================================= */
+
+async function startPremiumPayment() {
+
+console.log(
+    "Premium button clicked"
+);
+
+const user =
+    auth.currentUser;
+
+if (!user) {
+
+    alert(
+        "Please login first before upgrading to Premium."
+    );
+
+    return;
+}
+
+try {
+
+    const idToken =
+        await user.getIdToken(true);
+
+    const response =
+        await fetch(
+            `${API_URL}/api/payments/premium/initialize`,
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json",
+
+                    "Authorization":
+                        `Bearer ${idToken}`
+                }
+            }
+        );
+
+    const data =
+        await response.json();
+
+    console.log(
+        "Premium API response:",
+        data
+    );
+
+    if (!response.ok) {
+
+        throw new Error(
+            data.message ||
+            data.error ||
+            "Unable to initialize payment."
+        );
+    }
+
+    if (!data.authorization_url) {
+
+        throw new Error(
+            "Paystack checkout URL was not returned."
+        );
+    }
+
+    window.location.href =
+        data.authorization_url;
+
+} catch (error) {
+
+    console.error(
+        "Premium payment error:",
+        error
+    );
+
+    alert(
+
+`❌ Premium payment could not start.
+
+${error.message}`
+);
+}
+}
+
+/* =========================================================================
+PREMIUM BUTTON
+========================================================================= */
+
+function setupPremiumButton() {
+
+const upgradeBtn =
+    document.getElementById(
+        "upgradeBtn"
+    );
+
+if (!upgradeBtn) {
+
+    console.warn(
+        "upgradeBtn was not found."
+    );
+
+    return;
+}
+
+
+upgradeBtn.addEventListener(
+    "click",
+    async () => {
+
+        upgradeBtn.disabled = true;
+
+        const premium =
+            await isPremiumUser();
+
+        if (premium) {
+
+            openPremiumModal();
+
+        } else {
+
+            await startPremiumPayment();
+
+        }
+
+        upgradeBtn.disabled = false;
+
+    }
+);
+
+}
+
+/* =========================================================================
+CBT PRACTICE
+========================================================================= */
+
+async function startPractice() {
+
+const premium =
+    await isPremiumUser();
+
+if (premium) {
+
+    window.location.href =
+        "exam.html";
+
+    return;
+}
+
+const paid =
+    await spendCoins(
+        10,
+        "GST CBT Practice"
+    );
+
+if (paid) {
+
+    window.location.href =
+        "exam.html";
+}
+
+}
+
+/* =========================================================================
+LEADERBOARD
+========================================================================= */
+
+async function unlockWithCoins() {
+
+const premium =
+    await isPremiumUser();
+
+if (premium) {
+
+    localStorage.setItem(
+        "leaderboardAccess",
+        "true"
+    );
+
+    alert(
+        "💎 Premium Leaderboard Access Activated!"
+    );
+
+    location.reload();
+
+    return;
+}
+
+const paid =
+    await spendCoins(
+        50,
+        "Leaderboard Access"
+    );
+
+if (paid) {
+
+    localStorage.setItem(
+        "leaderboardAccess",
+        "true"
+    );
+
+    alert(
+        "🏆 Leaderboard Activated!"
+    );
+
+    location.reload();
+}
+
+}
+
+/* =========================================================================
+PREMIUM UNLOCK
+========================================================================= */
+
+async function premiumUnlock() {
+
+const premium =
+    await isPremiumUser();
+
+if (premium) {
+
+    openPremiumModal();
+
+    return;
+}
+
+await startPremiumPayment();
+
+}
+
+/* =========================================================================
+AUTH STATE
+========================================================================= */
+
+onAuthStateChanged(
+auth,
+async (user) => {
+
+    const status =
+        document.getElementById(
+            "premiumStatus"
+        );
+
+
+    if (!user) {
+
+        if (status) {
+
+            status.innerText =
+                "Free Account";
+
+        }
+
+        document.body.classList.remove(
+            "is-premium"
+        );
+
+        return;
+    }
+
+
+    /*
+     * Immediately show a useful state.
+     * This prevents "Checking Premium status..."
+     * from sitting on screen for too long.
+     */
+
+    if (status) {
+
+        status.innerText =
+            "Loading your account...";
+
+    }
+
+
+    await updateCoinDisplay();
+
+    await updatePremiumDisplay();
+
+}
+
+);
+
+/* =========================================================================
+PAGE LOAD
+========================================================================= */
+
+document.addEventListener(
+"DOMContentLoaded",
+() => {
+
+    setupPremiumButton();
+
+    setupPremiumModal();
+
+}
+
+);
+
+/* =========================================================================
+GLOBAL EXPORTS
+========================================================================= */
+
+window.startPractice =
+startPractice;
+
+window.rewardCoins =
+rewardCoins;
+
+window.spendCoins =
+spendCoins;
+
+window.updateCoinDisplay =
+updateCoinDisplay;
+
+window.unlockWithCoins =
+unlockWithCoins;
+
+window.premiumUnlock =
+premiumUnlock;
+
+window.isPremiumUser =
+isPremiumUser;
+
+window.updatePremiumDisplay =
+updatePremiumDisplay;
+
+window.startPremiumPayment =
+startPremiumPayment;
+
+window.openPremiumModal =
+openPremiumModal;
+
+window.closePremiumModal =
+closePremiumModal;
