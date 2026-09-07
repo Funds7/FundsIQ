@@ -207,7 +207,7 @@ const referralCode = generateReferralCode();
 
 // Generate referral link
 const referralLink =
-    `https://funds7.github.io/Fundsiq/signup.html?ref=${referralCode}`;
+    `https://funds7.github.io/FundsIQ/signup.html?ref=${referralCode}`;
 
 // Create referral profile
 await setDoc(
