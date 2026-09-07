@@ -23,8 +23,11 @@ import {
 
 document.addEventListener("DOMContentLoaded", () => {
 
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get("ref");
+    const params =
+        new URLSearchParams(window.location.search);
+
+    const ref =
+        params.get("ref");
 
     if (ref) {
 
@@ -32,7 +35,10 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("referralCode");
 
         if (referralInput) {
-            referralInput.value = ref.toUpperCase();
+
+            referralInput.value =
+                ref.toUpperCase();
+
         }
 
     }
@@ -44,18 +50,31 @@ document.addEventListener("DOMContentLoaded", () => {
 // SIGNUP
 // ==========================================
 
-const signupBtn = document.getElementById("signupBtn");
+const signupBtn =
+    document.getElementById("signupBtn");
+
 
 signupBtn.addEventListener("click", async () => {
 
     const name =
-        document.getElementById("name").value.trim();
+        document
+            .getElementById("name")
+            .value
+            .trim();
+
 
     const email =
-        document.getElementById("email").value.trim();
+        document
+            .getElementById("email")
+            .value
+            .trim();
+
 
     const password =
-        document.getElementById("password").value;
+        document
+            .getElementById("password")
+            .value;
+
 
     const referralCode =
         document
@@ -71,14 +90,19 @@ signupBtn.addEventListener("click", async () => {
 
     if (!name || !email || !password) {
 
-        alert("Please fill in all required fields.");
+        alert(
+            "Please fill in all required fields."
+        );
+
         return;
 
     }
 
 
     signupBtn.disabled = true;
-    signupBtn.textContent = "Creating Account...";
+
+    signupBtn.textContent =
+        "Creating Account...";
 
 
     try {
@@ -94,7 +118,9 @@ signupBtn.addEventListener("click", async () => {
                 password
             );
 
-        const user = userCredential.user;
+
+        const user =
+            userCredential.user;
 
 
         // ==========================================
@@ -103,28 +129,57 @@ signupBtn.addEventListener("click", async () => {
 
         let referrerUid = null;
 
+        let validReferralCode = "";
+
+
         if (referralCode) {
 
-            const usersRef = collection(db, "users");
+            const usersRef =
+                collection(
+                    db,
+                    "users"
+                );
 
-            const referralQuery = query(
-                usersRef,
-                where("referralCode", "==", referralCode)
-            );
+
+            const referralQuery =
+                query(
+                    usersRef,
+                    where(
+                        "referralCode",
+                        "==",
+                        referralCode
+                    )
+                );
+
 
             const referralSnapshot =
-                await getDocs(referralQuery);
+                await getDocs(
+                    referralQuery
+                );
 
 
-            if (!referralSnapshot.empty) {
+            if (
+                !referralSnapshot.empty
+            ) {
 
                 const referrerDoc =
                     referralSnapshot.docs[0];
 
-                // Prevent self-referral
-                if (referrerDoc.id !== user.uid) {
 
-                    referrerUid = referrerDoc.id;
+                // ----------------------------------
+                // PREVENT SELF REFERRAL
+                // ----------------------------------
+
+                if (
+                    referrerDoc.id !==
+                    user.uid
+                ) {
+
+                    referrerUid =
+                        referrerDoc.id;
+
+                    validReferralCode =
+                        referralCode;
 
                 }
 
@@ -137,73 +192,149 @@ signupBtn.addEventListener("click", async () => {
         // FIRESTORE TRANSACTION
         // ==========================================
 
-        await runTransaction(db, async (transaction) => {
+        await runTransaction(
+            db,
+            async (transaction) => {
 
-            // --------------------------------------
-            // CREATE NEW STUDENT PROFILE
-            // --------------------------------------
+                // ----------------------------------
+                // NEW USER PROFILE
+                // ----------------------------------
 
-            const newUserRef =
-                doc(db, "users", user.uid);
-
-
-            transaction.set(newUserRef, {
-
-                uid: user.uid,
-
-                name: name,
-
-                email: email,
-
-                // Welcome bonus
-                coins: 20,
-
-                // Student data
-                role: "student",
-
-                completedTests: 0,
-
-                totalScore: 0,
-
-                studyStreak: 0,
-
-                // Referral information
-                referralCount: 0,
-
-                referredBy:
-                    referrerUid
-                        ? referralCode
-                        : "",
-
-                createdAt: serverTimestamp()
-
-            });
+                const newUserRef =
+                    doc(
+                        db,
+                        "users",
+                        user.uid
+                    );
 
 
-            // --------------------------------------
-            // REWARD REFERRER
-            // --------------------------------------
-
-            if (referrerUid) {
-
-                const referrerRef =
-                    doc(db, "users", referrerUid);
-
-
-                transaction.update(
-                    referrerRef,
+                transaction.set(
+                    newUserRef,
                     {
 
-                        coins: increment(20),
+                        // --------------------------
+                        // BASIC USER INFORMATION
+                        // --------------------------
 
-                        referralCount: increment(1)
+                        uid:
+                            user.uid,
+
+                        name:
+                            name,
+
+                        email:
+                            email,
+
+
+                        // --------------------------
+                        // WELCOME COINS
+                        // --------------------------
+
+                        coins:
+                            20,
+
+
+                        // --------------------------
+                        // STUDENT INFORMATION
+                        // --------------------------
+
+                        role:
+                            "student",
+
+                        completedTests:
+                            0,
+
+                        totalScore:
+                            0,
+
+                        studyStreak:
+                            0,
+
+
+                        // --------------------------
+                        // REFERRAL INFORMATION
+                        // --------------------------
+
+                        referralCount:
+                            0,
+
+                        referredBy:
+                            validReferralCode,
+
+
+                        // --------------------------
+                        // CASH EARNINGS
+                        // --------------------------
+                        //
+                        // Premium commissions are
+                        // CASH and must NOT be mixed
+                        // with coins.
+                        //
+                        // Example:
+                        // Premium purchase = ₦2,000
+                        // Commission = ₦400
+                        //
+                        // That ₦400 will be handled
+                        // separately by the Premium
+                        // payment system.
+                        //
+
+                        totalEarnings:
+                            0,
+
+                        commissionBalance:
+                            0,
+
+
+                        // --------------------------
+                        // ACCOUNT CREATION
+                        // --------------------------
+
+                        createdAt:
+                            serverTimestamp()
 
                     }
                 );
 
-            }
 
-        });
+                // ==================================
+                // REWARD REFERRER
+                // ==================================
+
+                if (referrerUid) {
+
+                    const referrerRef =
+                        doc(
+                            db,
+                            "users",
+                            referrerUid
+                        );
+
+
+                    transaction.update(
+                        referrerRef,
+                        {
+
+                            // EVERY successful
+                            // referral = 10 coins
+
+                            coins:
+                                increment(10),
+
+
+                            // Increase referral
+                            // count by 1
+
+                            referralCount:
+                                increment(1)
+
+                        }
+                    );
+
+                }
+
+            }
+        );
 
 
         // ==========================================
@@ -215,7 +346,9 @@ signupBtn.addEventListener("click", async () => {
             alert(
                 "🎉 Account created!\n\n" +
                 "You received 20 coins 🪙\n\n" +
-                "Your referral was successfully recorded!"
+                "Your referral was successfully recorded!\n\n" +
+                "The person who referred you earned " +
+                "10 coins 🪙"
             );
 
         } else {
@@ -232,21 +365,38 @@ signupBtn.addEventListener("click", async () => {
         // GO TO LOGIN
         // ==========================================
 
-        window.location.href = "login.html";
+        window.location.href =
+            "login.html";
 
 
     } catch (error) {
 
-        console.error("Signup error:", error);
+        console.error(
+            "Signup error:",
+            error
+        );
 
 
-        if (error.code === "auth/email-already-in-use") {
+        // ==========================================
+        // FIREBASE AUTH ERRORS
+        // ==========================================
 
-            alert("Email already registered.");
+        if (
+            error.code ===
+            "auth/email-already-in-use"
+        ) {
+
+            alert(
+                "Email already registered."
+            );
 
         }
 
-        else if (error.code === "auth/weak-password") {
+
+        else if (
+            error.code ===
+            "auth/weak-password"
+        ) {
 
             alert(
                 "Password must be at least 6 characters."
@@ -254,7 +404,11 @@ signupBtn.addEventListener("click", async () => {
 
         }
 
-        else if (error.code === "auth/invalid-email") {
+
+        else if (
+            error.code ===
+            "auth/invalid-email"
+        ) {
 
             alert(
                 "Please enter a valid email address."
@@ -262,10 +416,12 @@ signupBtn.addEventListener("click", async () => {
 
         }
 
+
         else {
 
             alert(
-                "Signup failed: " + error.message
+                "Signup failed: " +
+                error.message
             );
 
         }
@@ -273,7 +429,13 @@ signupBtn.addEventListener("click", async () => {
     }
 
 
+    // ==========================================
+    // RESTORE BUTTON
+    // ==========================================
+
     signupBtn.disabled = false;
-    signupBtn.textContent = "Create Account";
+
+    signupBtn.textContent =
+        "Create Account";
 
 });
