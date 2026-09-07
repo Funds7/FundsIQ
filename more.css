@@ -11,7 +11,7 @@ border: 1px solid rgba(255, 255, 255, 0.05);
 border-radius: 24px;
 padding: 22px;
 margin-bottom: 25px;
-box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
 
 .ref-content h3 {
@@ -40,7 +40,7 @@ background-color: #7c3aed;
 .gift-svg {
 width: 95px;
 height: 95px;
-filter: drop-shadow(0 8px 12px rgba(0,0,0,0.3));
+filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.3));
 }
 
 /* =========================================================================
@@ -174,11 +174,41 @@ color: #fff;
 font-size: 0.9rem;
 font-weight: bold;
 cursor: pointer;
-transition: background 0.2s;
+transition:
+background 0.2s ease,
+opacity 0.2s ease,
+transform 0.15s ease;
 }
 
 .upgrade-btn:hover {
 background-color: #1d4ed8;
+}
+
+.upgrade-btn:active {
+transform: scale(0.98);
+}
+
+.upgrade-btn:disabled {
+opacity: 0.7;
+cursor: wait;
+}
+
+/* =========================================================================
+PREMIUM STATUS
+========================================================================= */
+
+.premium-status {
+display: inline-flex;
+align-items: center;
+min-height: 24px;
+margin-bottom: 8px;
+font-size: 0.78rem;
+font-weight: 700;
+color: var(--text-gray);
+}
+
+.premium-status.premium-active {
+color: #4ade80;
 }
 
 /* =========================================================================
@@ -188,6 +218,10 @@ PREMIUM ACTIVE MODAL
 .premium-modal {
 position: fixed;
 inset: 0;
+
+width: 100%;
+height: 100%;
+
 z-index: 99999;
 
 display: flex;
@@ -195,9 +229,12 @@ align-items: center;
 justify-content: center;
 
 padding: 20px;
+box-sizing: border-box;
 
 visibility: hidden;
 opacity: 0;
+
+pointer-events: none;
 
 transition:
 opacity 0.25s ease,
@@ -207,27 +244,46 @@ visibility 0.25s ease;
 .premium-modal.show {
 visibility: visible;
 opacity: 1;
+pointer-events: auto;
 }
 
-/* Dark background */
+/* =========================================================================
+MODAL OVERLAY
+========================================================================= */
 
 .premium-modal-overlay {
 position: absolute;
 inset: 0;
 
+width: 100%;
+height: 100%;
+
 background: rgba(2, 6, 23, 0.78);
 
 backdrop-filter: blur(7px);
 -webkit-backdrop-filter: blur(7px);
+
+pointer-events: none;
 }
 
-/* Modal box */
+.premium-modal.show .premium-modal-overlay {
+pointer-events: auto;
+}
+
+/* =========================================================================
+MODAL BOX
+========================================================================= */
 
 .premium-modal-box {
 position: relative;
 z-index: 2;
 
 width: min(100%, 390px);
+max-height: calc(100vh - 40px);
+
+overflow-y: auto;
+
+box-sizing: border-box;
 
 background:
 linear-gradient(
@@ -259,7 +315,9 @@ transform 0.3s ease;
 transform: translateY(0) scale(1);
 }
 
-/* Close button */
+/* =========================================================================
+MODAL CLOSE BUTTON
+========================================================================= */
 
 .premium-modal-close {
 position: absolute;
@@ -282,9 +340,16 @@ line-height: 1;
 
 cursor: pointer;
 
+display: flex;
+align-items: center;
+justify-content: center;
+
+z-index: 5;
+
 transition:
 background 0.2s ease,
-color 0.2s ease;
+color 0.2s ease,
+transform 0.15s ease;
 }
 
 .premium-modal-close:hover {
@@ -292,7 +357,13 @@ background: rgba(255, 255, 255, 0.12);
 color: #fff;
 }
 
-/* Diamond */
+.premium-modal-close:active {
+transform: scale(0.92);
+}
+
+/* =========================================================================
+PREMIUM DIAMOND
+========================================================================= */
 
 .premium-modal-icon {
 width: 70px;
@@ -321,7 +392,9 @@ box-shadow:
 0 0 30px rgba(59, 130, 246, 0.15);
 }
 
-/* PREMIUM label */
+/* =========================================================================
+PREMIUM LABEL
+========================================================================= */
 
 .premium-modal-label {
 display: inline-block;
@@ -337,7 +410,9 @@ letter-spacing: 2px;
 color: #60a5fa;
 }
 
-/* Modal title */
+/* =========================================================================
+MODAL TITLE
+========================================================================= */
 
 .premium-modal-box h2 {
 margin: 0 0 10px;
@@ -347,9 +422,13 @@ color: #fff;
 font-size: 1.45rem;
 
 font-weight: 800;
+
+line-height: 1.25;
 }
 
-/* Description */
+/* =========================================================================
+MODAL DESCRIPTION
+========================================================================= */
 
 .premium-modal-description {
 margin: 0 auto 22px;
@@ -363,7 +442,9 @@ font-size: 0.82rem;
 line-height: 1.6;
 }
 
-/* Benefits */
+/* =========================================================================
+PREMIUM BENEFITS
+========================================================================= */
 
 .premium-benefits {
 text-align: left;
@@ -417,7 +498,9 @@ font-size: 0.75rem;
 font-weight: 900;
 }
 
-/* Awesome button */
+/* =========================================================================
+AWESOME BUTTON
+========================================================================= */
 
 .premium-modal-ok {
 width: 100%;
@@ -462,13 +545,37 @@ box-shadow:
 transform: scale(0.98);
 }
 
-/* Prevent page scrolling while modal is open */
+/* =========================================================================
+PREVENT PAGE SCROLL WHEN MODAL IS OPEN
+========================================================================= */
 
 body.modal-open {
 overflow: hidden;
 }
 
-/* Mobile */
+/* =========================================================================
+BOTTOM NAVIGATION
+========================================================================= */
+
+/*
+The navigation stays clickable during normal page use.
+When the Premium modal is open, the modal intentionally sits above it.
+*/
+
+.bottom-nav {
+position: fixed;
+z-index: 1000;
+pointer-events: auto;
+}
+
+.bottom-nav-item {
+pointer-events: auto;
+cursor: pointer;
+}
+
+/* =========================================================================
+MOBILE
+========================================================================= */
 
 @media (max-width: 480px) {
 
@@ -478,18 +585,75 @@ padding: 16px;
 
 .premium-modal-box {
 width: 100%;
+
+max-height: calc(100vh - 32px);
+
 border-radius: 25px;
+
 padding: 28px 20px 20px;
+
 }
 
 .premium-modal-icon {
 width: 64px;
 height: 64px;
+
 font-size: 32px;
+
 }
 
 .premium-modal-box h2 {
 font-size: 1.3rem;
+}
+
+.premium-modal-description {
+font-size: 0.79rem;
+}
+
+}
+
+/* =========================================================================
+VERY SMALL PHONES
+========================================================================= */
+
+@media (max-height: 650px) {
+
+.premium-modal-box {
+padding-top: 22px;
+padding-bottom: 18px;
+}
+
+.premium-modal-icon {
+width: 56px;
+height: 56px;
+
+margin-bottom: 10px;
+
+font-size: 28px;
+
+}
+
+.premium-modal-box h2 {
+font-size: 1.2rem;
+margin-bottom: 8px;
+}
+
+.premium-modal-description {
+margin-bottom: 14px;
+line-height: 1.45;
+}
+
+.premium-benefits {
+padding: 11px 13px;
+margin-bottom: 14px;
+}
+
+.premium-benefit + .premium-benefit {
+margin-top: 8px;
+}
+
+.premium-modal-ok {
+padding: 11px 14px;
 }
 
 }
