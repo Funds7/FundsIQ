@@ -39,16 +39,23 @@ const State = {
     activeTab: "overview",
 
     marketerData: {
+
         balance: 0,
+
         totalEarnings: 0,
+
         totalReferrals: 0,
+
         premiumReferrals: 0,
 
         referralCode: "",
+
         referralLink: "",
 
         bankName: "",
+
         accountNumber: "",
+
         accountName: "",
 
         status: "Inactive"
@@ -64,33 +71,50 @@ const State = {
 // 3. TOAST NOTIFIER
 // ============================================================================
 
-function showToast(message, type = "success") {
+function showToast(
+    message,
+    type = "success"
+) {
 
     const container =
-        document.getElementById("toast-container");
+        document.getElementById(
+            "toast-container"
+        );
 
     if (!container) return;
 
+
     const toast =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
+
 
     toast.className =
         `toast ${type}`;
+
 
     toast.innerHTML = `
         <span class="toast-indicator"></span>
         <span>${escapeHTML(message)}</span>
     `;
 
-    container.appendChild(toast);
+
+    container.appendChild(
+        toast
+    );
+
 
     setTimeout(() => {
 
         toast.style.animation =
             "toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) reverse";
 
+
         setTimeout(() => {
+
             toast.remove();
+
         }, 300);
 
     }, 3000);
@@ -107,8 +131,10 @@ function escapeHTML(value) {
         value === null ||
         value === undefined
     ) {
+
         return "";
     }
+
 
     return String(value)
         .replace(/&/g, "&amp;")
@@ -129,24 +155,33 @@ function subscribeToMarketerData(user) {
     // CLEAN OLD LISTENERS
     // ------------------------------------------------------------------------
 
-    State.unsubscribes.forEach(unsub => {
+    State.unsubscribes.forEach(
+        unsub => {
 
-        try {
-            unsub();
-        } catch (error) {
-            console.error(
-                "Listener cleanup error:",
-                error
-            );
+            try {
+
+                unsub();
+
+            } catch (error) {
+
+                console.error(
+                    "Listener cleanup error:",
+                    error
+                );
+            }
         }
+    );
 
-    });
 
     State.unsubscribes = [];
 
 
     const userRef =
-        doc(db, "users", user.uid);
+        doc(
+            db,
+            "users",
+            user.uid
+        );
 
 
     toggleSkeleton(true);
@@ -156,172 +191,223 @@ function subscribeToMarketerData(user) {
     // USER PROFILE SNAPSHOT
     // ========================================================================
 
-    const unsubUser = onSnapshot(
+    const unsubUser =
+        onSnapshot(
 
-        userRef,
+            userRef,
 
-        (docSnap) => {
+            (docSnap) => {
 
-            if (docSnap.exists()) {
+                if (docSnap.exists()) {
 
-                const data =
-                    docSnap.data();
-
-
-                // ============================================================
-                // CURRENT REFERRAL CODE
-                // ============================================================
-
-                const referralCode =
-                    data.referralCode || "";
+                    const data =
+                        docSnap.data();
 
 
-                // ============================================================
-                // ALWAYS USE CURRENT FUNDSIQ SIGNUP URL
-                // ============================================================
+                    // ========================================================
+                    // REFERRAL CODE
+                    // ========================================================
 
-                const referralLink =
-                    referralCode
-
-                        ? `https://funds7.github.io/FundsIQ/signup.html?ref=${encodeURIComponent(referralCode)}`
-
-                        : "";
+                    const referralCode =
+                        data.referralCode || "";
 
 
-                // ============================================================
-                // AUTOMATICALLY REPAIR OLD REFERRAL LINKS
-                // ============================================================
+                    // ========================================================
+                    // REFERRAL LINK
+                    // ========================================================
 
-                if (
-                    referralCode &&
-                    data.referralLink !== referralLink
-                ) {
+                    const referralLink =
+                        referralCode
 
-                    updateDoc(userRef, {
+                            ? `https://funds7.github.io/FundsIQ/signup.html?ref=${encodeURIComponent(referralCode)}`
+
+                            : "";
+
+
+                    // ========================================================
+                    // REPAIR OLD REFERRAL LINK
+                    // ========================================================
+
+                    if (
+                        referralCode &&
+                        data.referralLink !== referralLink
+                    ) {
+
+                        updateDoc(
+                            userRef,
+                            {
+                                referralLink:
+                                    referralLink
+                            }
+                        ).catch(error => {
+
+                            console.error(
+                                "Could not update referral link:",
+                                error
+                            );
+
+                        });
+                    }
+
+
+                    // ========================================================
+                    // REFERRAL COUNT FIX
+                    // ========================================================
+                    //
+                    // Older signup code used:
+                    // referralCount
+                    //
+                    // New dashboard standard:
+                    // totalReferrals
+                    //
+                    // We support BOTH so existing referrals
+                    // are not lost.
+                    //
+
+                    let totalReferrals = 0;
+
+
+                    if (
+                        data.totalReferrals !==
+                        undefined &&
+                        data.totalReferrals !==
+                        null
+                    ) {
+
+                        totalReferrals =
+                            Number(
+                                data.totalReferrals
+                            ) || 0;
+
+                    }
+
+                    else {
+
+                        totalReferrals =
+                            Number(
+                                data.referralCount || 0
+                            );
+                    }
+
+
+                    // ========================================================
+                    // LOAD REAL FIRESTORE VALUES
+                    // ========================================================
+
+                    State.marketerData = {
+
+                        balance:
+                            Number(
+                                data.marketerBalance || 0
+                            ),
+
+
+                        totalEarnings:
+                            Number(
+                                data.totalEarnings || 0
+                            ),
+
+
+                        totalReferrals:
+                            totalReferrals,
+
+
+                        premiumReferrals:
+                            Number(
+                                data.premiumReferrals || 0
+                            ),
+
+
+                        referralCode:
+                            referralCode,
+
 
                         referralLink:
-                            referralLink
+                            referralLink,
 
-                    }).catch(error => {
 
-                        console.error(
-                            "Could not update referral link:",
-                            error
-                        );
+                        bankName:
+                            data.bankName || "",
 
-                    });
+
+                        accountNumber:
+                            data.accountNumber || "",
+
+
+                        accountName:
+                            data.accountName || "",
+
+
+                        status:
+                            data.isMarketer
+                                ? "Active"
+                                : "Inactive"
+                    };
+
+
+                    // ========================================================
+                    // UPDATE UI
+                    // ========================================================
+
+                    syncUI();
+
+                }
+
+                else {
+
+                    // ========================================================
+                    // PROFILE DOES NOT EXIST
+                    // ========================================================
+
+                    State.marketerData = {
+
+                        balance: 0,
+
+                        totalEarnings: 0,
+
+                        totalReferrals: 0,
+
+                        premiumReferrals: 0,
+
+                        referralCode: "",
+
+                        referralLink: "",
+
+                        bankName: "",
+
+                        accountNumber: "",
+
+                        accountName: "",
+
+                        status: "Inactive"
+                    };
+
+
+                    syncUI();
                 }
 
 
-                // ============================================================
-                // LOAD REAL FIRESTORE VALUES
-                // ============================================================
+                toggleSkeleton(false);
 
-                State.marketerData = {
+            },
 
-                    balance:
-                        Number(
-                            data.marketerBalance || 0
-                        ),
+            (error) => {
 
-                    totalEarnings:
-                        Number(
-                            data.totalEarnings || 0
-                        ),
-
-                    totalReferrals:
-                        Number(
-                            data.totalReferrals || 0
-                        ),
-
-                    premiumReferrals:
-                        Number(
-                            data.premiumReferrals || 0
-                        ),
+                console.error(
+                    "User profile subscription error:",
+                    error
+                );
 
 
-                    referralCode:
-                        referralCode,
-
-                    referralLink:
-                        referralLink,
+                toggleSkeleton(false);
 
 
-                    bankName:
-                        data.bankName || "",
-
-                    accountNumber:
-                        data.accountNumber || "",
-
-                    accountName:
-                        data.accountName || "",
-
-
-                    status:
-                        data.isMarketer
-                            ? "Active"
-                            : "Inactive"
-                };
-
-
-                // ============================================================
-                // UPDATE UI
-                // ============================================================
-
-                syncUI();
-
-            } else {
-
-                // ============================================================
-                // PROFILE DOES NOT EXIST
-                // ============================================================
-
-                State.marketerData = {
-
-                    balance: 0,
-
-                    totalEarnings: 0,
-
-                    totalReferrals: 0,
-
-                    premiumReferrals: 0,
-
-                    referralCode: "",
-
-                    referralLink: "",
-
-                    bankName: "",
-
-                    accountNumber: "",
-
-                    accountName: "",
-
-                    status: "Inactive"
-                };
-
-
-                syncUI();
+                showToast(
+                    "Unable to sync your marketer account.",
+                    "error"
+                );
             }
-
-
-            toggleSkeleton(false);
-        },
-
-        (error) => {
-
-            console.error(
-                "User profile subscription error:",
-                error
-            );
-
-            toggleSkeleton(false);
-
-            showToast(
-                "Unable to sync your marketer account.",
-                "error"
-            );
-        }
-    );
+        );
 
 
     State.unsubscribes.push(
@@ -343,7 +429,10 @@ function subscribeToMarketerData(user) {
     const qActivity =
         query(
             activityRef,
-            orderBy("timestamp", "desc")
+            orderBy(
+                "timestamp",
+                "desc"
+            )
         );
 
 
@@ -418,6 +507,7 @@ function syncUI() {
             "overview-balance"
         );
 
+
     if (overviewBal) {
 
         overviewBal.textContent =
@@ -435,6 +525,7 @@ function syncUI() {
         document.getElementById(
             "stat-total-earnings"
         );
+
 
     if (totalEarned) {
 
@@ -454,6 +545,7 @@ function syncUI() {
             "stat-total-referrals"
         );
 
+
     if (totalRefs) {
 
         totalRefs.textContent =
@@ -470,6 +562,7 @@ function syncUI() {
             "stat-premium-referrals"
         );
 
+
     if (premRefs) {
 
         premRefs.textContent =
@@ -485,6 +578,7 @@ function syncUI() {
         document.getElementById(
             "referral-code-display"
         );
+
 
     if (codeDisplay) {
 
@@ -503,6 +597,7 @@ function syncUI() {
             "referral-link-display"
         );
 
+
     if (linkDisplay) {
 
         linkDisplay.textContent =
@@ -519,6 +614,7 @@ function syncUI() {
         document.getElementById(
             "withdraw-balance-amount"
         );
+
 
     if (withdrawBal) {
 
@@ -538,10 +634,12 @@ function syncUI() {
             "draw-bank-name"
         );
 
+
     const aNum =
         document.getElementById(
             "draw-account-number"
         );
+
 
     const aName =
         document.getElementById(
@@ -586,7 +684,9 @@ function syncUI() {
         );
 
 
-    if (data.balance >= 2000) {
+    if (
+        data.balance >= 2000
+    ) {
 
         if (submitBtn) {
 
@@ -604,7 +704,9 @@ function syncUI() {
                 "var(--green)";
         }
 
-    } else {
+    }
+
+    else {
 
         if (submitBtn) {
 
@@ -616,7 +718,8 @@ function syncUI() {
         if (warningText) {
 
             const needed =
-                2000 - data.balance;
+                2000 -
+                data.balance;
 
 
             warningText.textContent =
@@ -654,6 +757,7 @@ function renderActivityLogs() {
         !listContainer ||
         !emptyState
     ) {
+
         return;
     }
 
@@ -665,8 +769,10 @@ function renderActivityLogs() {
         listContainer.innerHTML =
             "";
 
+
         emptyState.style.display =
             "block";
+
 
         return;
     }
@@ -740,7 +846,9 @@ function renderActivityLogs() {
                             }
                         );
 
-                } catch (error) {
+                }
+
+                catch (error) {
 
                     dateText =
                         "";
@@ -772,6 +880,7 @@ function renderActivityLogs() {
             fragment.appendChild(
                 card
             );
+
         }
     );
 
@@ -840,7 +949,9 @@ async function copyToClipboard(
                 text
             );
 
-        } else {
+        }
+
+        else {
 
             const input =
                 document.createElement(
@@ -866,6 +977,7 @@ async function copyToClipboard(
 
 
             input.focus();
+
             input.select();
 
 
@@ -882,7 +994,9 @@ async function copyToClipboard(
             successMsg
         );
 
-    } catch (error) {
+    }
+
+    catch (error) {
 
         console.error(
             "Clipboard error:",
@@ -990,15 +1104,6 @@ function shareToWhatsAppBusiness() {
     }
 
 
-    /*
-     * WhatsApp Business uses the same WhatsApp
-     * sharing protocol.
-     *
-     * We first attempt the WhatsApp deep link.
-     * If the device does not handle it, we fall
-     * back to the normal WhatsApp web/share URL.
-     */
-
     const businessUrl =
         `whatsapp://send?text=${encodeURIComponent(message)}`;
 
@@ -1012,7 +1117,9 @@ function shareToWhatsAppBusiness() {
         window.location.href =
             businessUrl;
 
-    } catch (error) {
+    }
+
+    catch (error) {
 
         console.warn(
             "WhatsApp Business deep link failed:",
@@ -1078,12 +1185,15 @@ async function shareReferral() {
 
             return;
 
-        } catch (error) {
+        }
+
+        catch (error) {
 
             if (
                 error.name ===
                 "AbortError"
             ) {
+
                 return;
             }
 
@@ -1318,7 +1428,9 @@ document.addEventListener(
                         user
                     );
 
-                } else {
+                }
+
+                else {
 
                     State.user =
                         null;
@@ -1331,7 +1443,9 @@ document.addEventListener(
 
                                 unsub();
 
-                            } catch (error) {
+                            }
+
+                            catch (error) {
 
                                 console.error(
                                     error
@@ -1389,6 +1503,7 @@ document.addEventListener(
 
                         "Referral code copied!"
                     );
+
                 }
             );
 
@@ -1412,6 +1527,7 @@ document.addEventListener(
 
                         "Referral link copied!"
                     );
+
                 }
             );
 
@@ -1480,6 +1596,7 @@ document.addEventListener(
 
                         withdrawTab.click();
                     }
+
                 }
             );
 
@@ -1711,7 +1828,9 @@ document.addEventListener(
                         );
 
 
-                    } catch (error) {
+                    }
+
+                    catch (error) {
 
                         console.error(
                             "Withdrawal transaction failed:",
@@ -1724,7 +1843,9 @@ document.addEventListener(
                             "error"
                         );
 
-                    } finally {
+                    }
+
+                    finally {
 
                         // ----------------------------------------------------
                         // RESTORE BUTTON
@@ -1740,8 +1861,17 @@ document.addEventListener(
                                 "📝 Submit Payout Request";
                         }
                     }
+
                 }
             );
         }
+
     }
-);
+);20 coin welcome 
+20 if you refer someone 
+-10 per CBT 
+5 per ads rewards
+Maximum ads daily 10
+If you refer more people you coin would be more less so it won't less value 
+If user pay premium 2k
+You get %20 which is N400
