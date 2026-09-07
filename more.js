@@ -32,11 +32,12 @@ async function getUserData() {
 
     try {
 
-        const userRef = doc(
-            db,
-            "users",
-            user.uid
-        );
+        const userRef =
+            doc(
+                db,
+                "users",
+                user.uid
+            );
 
         const snap =
             await getDoc(userRef);
@@ -284,6 +285,119 @@ ${reason}`
 
 
 // ==========================================
+// PREMIUM ACTIVE MODAL
+// ==========================================
+
+function openPremiumModal() {
+
+    const modal =
+        document.getElementById(
+            "premiumModal"
+        );
+
+    if (!modal) {
+
+        console.warn(
+            "premiumModal was not found."
+        );
+
+        return;
+    }
+
+    modal.classList.add(
+        "show"
+    );
+
+    modal.setAttribute(
+        "aria-hidden",
+        "false"
+    );
+
+    document.body.classList.add(
+        "modal-open"
+    );
+}
+
+
+function closePremiumModal() {
+
+    const modal =
+        document.getElementById(
+            "premiumModal"
+        );
+
+    if (!modal) return;
+
+    modal.classList.remove(
+        "show"
+    );
+
+    modal.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
+    document.body.classList.remove(
+        "modal-open"
+    );
+}
+
+
+function setupPremiumModal() {
+
+    const closeBtn =
+        document.getElementById(
+            "premiumModalClose"
+        );
+
+    const okBtn =
+        document.getElementById(
+            "premiumModalOk"
+        );
+
+    const overlay =
+        document.getElementById(
+            "premiumModalOverlay"
+        );
+
+    if (closeBtn) {
+
+        closeBtn.addEventListener(
+            "click",
+            closePremiumModal
+        );
+    }
+
+    if (okBtn) {
+
+        okBtn.addEventListener(
+            "click",
+            closePremiumModal
+        );
+    }
+
+    if (overlay) {
+
+        overlay.addEventListener(
+            "click",
+            closePremiumModal
+        );
+    }
+
+    document.addEventListener(
+        "keydown",
+        (event) => {
+
+            if (event.key === "Escape") {
+
+                closePremiumModal();
+            }
+        }
+    );
+}
+
+
+// ==========================================
 // PREMIUM PAYMENT
 // ==========================================
 
@@ -405,13 +519,8 @@ function setupPremiumButton() {
 
             if (premium) {
 
-                alert(
-`💎 FundsIQ Premium
-
-Premium is already active on your account.
-
-Enjoy your Premium benefits!`
-                );
+                // Custom FundsIQ modal
+                openPremiumModal();
 
                 return;
             }
@@ -516,13 +625,8 @@ async function premiumUnlock() {
 
     if (premium) {
 
-        alert(
-`💎 FundsIQ Premium
-
-Premium is already active on your account.
-
-Enjoy your Premium benefits!`
-        );
+        // Use the same professional modal
+        openPremiumModal();
 
         return;
     }
@@ -572,6 +676,8 @@ document.addEventListener(
 
         setupPremiumButton();
 
+        setupPremiumModal();
+
     }
 );
 
@@ -606,3 +712,9 @@ window.updatePremiumDisplay =
 
 window.startPremiumPayment =
     startPremiumPayment;
+
+window.openPremiumModal =
+    openPremiumModal;
+
+window.closePremiumModal =
+    closePremiumModal;
