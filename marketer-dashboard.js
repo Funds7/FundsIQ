@@ -1867,11 +1867,4 @@ document.addEventListener(
         }
 
     }
-);20 coin welcome 
-20 if you refer someone 
--10 per CBT 
-5 per ads rewards
-Maximum ads daily 10
-If you refer more people you coin would be more less so it won't less value 
-If user pay premium 2k
-You get %20 which is N400
+);
