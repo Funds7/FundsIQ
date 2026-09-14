@@ -62,10 +62,21 @@ const SECRET =
 const PAYSTACK_SECRET_KEY =
   process.env.PAYSTACK_SECRET_KEY;
 
-const PREMIUM_PRICE_NAIRA = 2000;
+const PREMIUM_PRICE_NAIRA =
+  2000;
 
 const PREMIUM_AMOUNT_KOBO =
   PREMIUM_PRICE_NAIRA * 100;
+
+const MARKETER_COMMISSION_PERCENT =
+  20;
+
+const MARKETER_COMMISSION_NAIRA =
+  Math.floor(
+    PREMIUM_PRICE_NAIRA *
+    MARKETER_COMMISSION_PERCENT /
+    100
+  );
 
 const FRONTEND_URL =
   "https://funds7.github.io/FundsIQ/";
@@ -113,20 +124,40 @@ let results = [];
 // HEALTH CHECK
 // ======================================================
 
-app.get("/", (req, res) => {
+app.get(
+  "/",
+  (req, res) => {
 
-  res.json({
-    status: "online",
-    service: "FundsIQ API",
-    message:
-      "FundsIQ backend is running",
-    paystackConfigured:
-      Boolean(PAYSTACK_SECRET_KEY),
-    webhook:
-      PAYSTACK_WEBHOOK_URL
-  });
+    res.json({
+      status:
+        "online",
 
-});
+      service:
+        "FundsIQ API",
+
+      message:
+        "FundsIQ backend is running",
+
+      paystackConfigured:
+        Boolean(
+          PAYSTACK_SECRET_KEY
+        ),
+
+      webhook:
+        PAYSTACK_WEBHOOK_URL,
+
+      premiumPrice:
+        PREMIUM_PRICE_NAIRA,
+
+      marketerCommission:
+        MARKETER_COMMISSION_NAIRA,
+
+      commissionPercent:
+        MARKETER_COMMISSION_PERCENT
+    });
+
+  }
+);
 
 
 // ======================================================
@@ -241,9 +272,12 @@ app.post(
       const user = {
         id:
           Date.now().toString(),
+
         name,
+
         email:
           email.toLowerCase(),
+
         password:
           hashed
       };
@@ -345,16 +379,22 @@ app.post(
         );
 
       res.json({
+
         token,
 
         user: {
+
           id:
             user.id,
+
           name:
             user.name,
+
           email:
             user.email
+
         }
+
       });
 
     } catch (error) {
@@ -410,8 +450,10 @@ app.get(
         userSnap.data();
 
       res.json({
+
         premium:
           userData.premium === true
+
       });
 
     } catch (error) {
@@ -575,8 +617,10 @@ app.post(
         {
           ok:
             response.ok,
+
           status:
             data.status,
+
           message:
             data.message
         }
@@ -700,6 +744,7 @@ async function verifyPremiumPayment(
 
 // ======================================================
 // COMPLETE PREMIUM PURCHASE
+// + MARKETER COMMISSION
 // ======================================================
 
 async function completePremiumPurchase(
@@ -714,6 +759,10 @@ async function completePremiumPurchase(
 
   }
 
+  // --------------------------------------------------
+  // VERIFY PAYMENT STATUS
+  // --------------------------------------------------
+
   if (
     transaction.status !==
     "success"
@@ -724,6 +773,10 @@ async function completePremiumPurchase(
     );
 
   }
+
+  // --------------------------------------------------
+  // VERIFY PAYMENT AMOUNT
+  // --------------------------------------------------
 
   if (
     Number(transaction.amount) !==
@@ -736,6 +789,10 @@ async function completePremiumPurchase(
 
   }
 
+  // --------------------------------------------------
+  // VERIFY CURRENCY
+  // --------------------------------------------------
+
   if (
     transaction.currency !==
     "NGN"
@@ -747,8 +804,32 @@ async function completePremiumPurchase(
 
   }
 
-  const metadata =
+  // --------------------------------------------------
+  // PAYMENT METADATA
+  // --------------------------------------------------
+
+  let metadata =
     transaction.metadata;
+
+  if (
+    typeof metadata ===
+    "string"
+  ) {
+
+    try {
+
+      metadata =
+        JSON.parse(metadata);
+
+    } catch (error) {
+
+      throw new Error(
+        "Invalid payment metadata"
+      );
+
+    }
+
+  }
 
   if (
     !metadata ||
@@ -775,14 +856,126 @@ async function completePremiumPurchase(
   const uid =
     metadata.uid;
 
+  const reference =
+    transaction.reference;
+
+  if (!reference) {
+
+    throw new Error(
+      "Payment reference missing"
+    );
+
+  }
+
+  // --------------------------------------------------
+  // CUSTOMER REFERENCE
+  // --------------------------------------------------
+
   const userRef =
     db
       .collection("users")
       .doc(uid);
 
+  // --------------------------------------------------
+  // GET CUSTOMER
+  // --------------------------------------------------
+
+  const customerSnap =
+    await userRef.get();
+
+  if (!customerSnap.exists) {
+
+    throw new Error(
+      "FundsIQ user not found"
+    );
+
+  }
+
+  const customerData =
+    customerSnap.data();
+
+  // --------------------------------------------------
+  // FIND REFERRER
+  // --------------------------------------------------
+
+  const referredBy =
+    customerData.referredBy || "";
+
+  let marketerRef =
+    null;
+
+  if (referredBy) {
+
+    const marketerQuery =
+      await db
+        .collection("users")
+        .where(
+          "referralCode",
+          "==",
+          referredBy
+        )
+        .limit(1)
+        .get();
+
+    if (
+      !marketerQuery.empty
+    ) {
+
+      marketerRef =
+        marketerQuery
+          .docs[0]
+          .ref;
+
+      console.log(
+        "Marketer found:",
+        {
+
+          marketerUid:
+            marketerRef.id,
+
+          referralCode:
+            referredBy
+
+        }
+      );
+
+    } else {
+
+      console.log(
+        "No marketer found for referral code:",
+        referredBy
+      );
+
+    }
+
+  }
+
+  // --------------------------------------------------
+  // COMMISSION RECORD
+  //
+  // The Paystack reference is used as the document ID.
+  // This prevents duplicate commission payments.
+  // --------------------------------------------------
+
+  const commissionRef =
+    db
+      .collection("premiumCommissions")
+      .doc(reference);
+
+  // --------------------------------------------------
+  // FIRESTORE TRANSACTION
+  // --------------------------------------------------
+
   await db.runTransaction(
     async firestoreTransaction => {
 
+      // Read commission record
+      const commissionSnap =
+        await firestoreTransaction.get(
+          commissionRef
+        );
+
+      // Read customer
       const userSnap =
         await firestoreTransaction.get(
           userRef
@@ -796,22 +989,26 @@ async function completePremiumPurchase(
 
       }
 
-      const userData =
-        userSnap.data();
+      // ------------------------------------------------
+      // DUPLICATE PROTECTION
+      // ------------------------------------------------
 
-      // Prevent duplicate fulfillment
       if (
-        userData.premium === true
+        commissionSnap.exists
       ) {
 
         console.log(
-          "Premium already active:",
-          uid
+          "Premium transaction already processed:",
+          reference
         );
 
         return;
 
       }
+
+      // ------------------------------------------------
+      // ACTIVATE PREMIUM
+      // ------------------------------------------------
 
       firestoreTransaction.update(
         userRef,
@@ -826,7 +1023,7 @@ async function completePremiumPurchase(
               .serverTimestamp(),
 
           premiumPaymentReference:
-            transaction.reference,
+            reference,
 
           premiumPaymentAmount:
             transaction.amount,
@@ -837,15 +1034,195 @@ async function completePremiumPurchase(
         }
       );
 
+      // ------------------------------------------------
+      // CREDIT MARKETER
+      // ------------------------------------------------
+
+      if (
+        marketerRef
+      ) {
+
+        const marketerSnap =
+          await firestoreTransaction.get(
+            marketerRef
+          );
+
+        if (
+          marketerSnap.exists
+        ) {
+
+          const marketerData =
+            marketerSnap.data();
+
+          const currentBalance =
+            Number(
+              marketerData.marketerBalance ||
+              0
+            );
+
+          const currentEarnings =
+            Number(
+              marketerData.totalEarnings ||
+              0
+            );
+
+          const currentPremiumReferrals =
+            Number(
+              marketerData.premiumReferrals ||
+              0
+            );
+
+          const newBalance =
+            currentBalance +
+            MARKETER_COMMISSION_NAIRA;
+
+          const newTotalEarnings =
+            currentEarnings +
+            MARKETER_COMMISSION_NAIRA;
+
+          const newPremiumReferrals =
+            currentPremiumReferrals +
+            1;
+
+          firestoreTransaction.update(
+            marketerRef,
+            {
+
+              // CASH BALANCE
+              marketerBalance:
+                newBalance,
+
+              // TOTAL CASH EARNINGS
+              totalEarnings:
+                newTotalEarnings,
+
+              // PREMIUM REFERRAL COUNT
+              premiumReferrals:
+                newPremiumReferrals,
+
+              // LAST COMMISSION TIME
+              lastCommissionAt:
+                admin.firestore
+                  .FieldValue
+                  .serverTimestamp()
+
+            }
+          );
+
+          console.log(
+            "MARKETER COMMISSION CREDITED:",
+            {
+
+              marketerUid:
+                marketerRef.id,
+
+              commission:
+                MARKETER_COMMISSION_NAIRA,
+
+              newBalance,
+
+              newTotalEarnings,
+
+              premiumReferrals:
+                newPremiumReferrals
+
+            }
+          );
+
+        } else {
+
+          console.warn(
+            "Marketer document no longer exists:",
+            marketerRef.id
+          );
+
+        }
+
+      } else {
+
+        console.log(
+          "No valid referrer. No marketer commission."
+        );
+
+      }
+
+      // ------------------------------------------------
+      // SAVE COMMISSION RECORD
+      // ------------------------------------------------
+
+      firestoreTransaction.set(
+        commissionRef,
+        {
+
+          transactionReference:
+            reference,
+
+          customerUid:
+            uid,
+
+          marketerUid:
+            marketerRef
+              ? marketerRef.id
+              : null,
+
+          referralCode:
+            referredBy || null,
+
+          premiumAmount:
+            PREMIUM_PRICE_NAIRA,
+
+          commissionPercent:
+            MARKETER_COMMISSION_PERCENT,
+
+          commissionAmount:
+            marketerRef
+              ? MARKETER_COMMISSION_NAIRA
+              : 0,
+
+          currency:
+            "NGN",
+
+          status:
+            marketerRef
+              ? "credited"
+              : "no_referrer",
+
+          createdAt:
+            admin.firestore
+              .FieldValue
+              .serverTimestamp()
+
+        }
+      );
+
     }
   );
 
+  // --------------------------------------------------
+  // FINAL LOG
+  // --------------------------------------------------
+
   console.log(
-    "Premium successfully activated:",
+    "Premium purchase completed:",
     {
+
       uid,
-      reference:
-        transaction.reference
+
+      reference,
+
+      premiumAmount:
+        PREMIUM_PRICE_NAIRA,
+
+      marketerCommission:
+        marketerRef
+          ? MARKETER_COMMISSION_NAIRA
+          : 0,
+
+      marketerUid:
+        marketerRef
+          ? marketerRef.id
+          : null
+
     }
   );
 
@@ -853,8 +1230,12 @@ async function completePremiumPurchase(
 
     uid,
 
-    reference:
-      transaction.reference
+    reference,
+
+    commission:
+      marketerRef
+        ? MARKETER_COMMISSION_NAIRA
+        : 0
 
   };
 
@@ -983,8 +1364,15 @@ app.post(
         event.event
       );
 
-      // Acknowledge Paystack immediately.
+      // ------------------------------------------------
+      // ACKNOWLEDGE PAYSTACK
+      // ------------------------------------------------
+
       res.sendStatus(200);
+
+      // ------------------------------------------------
+      // ONLY PROCESS SUCCESSFUL PAYMENTS
+      // ------------------------------------------------
 
       if (
         event.event !==
@@ -1062,7 +1450,9 @@ app.post(
       );
 
       if (!res.headersSent) {
+
         res.sendStatus(500);
+
       }
 
     }
@@ -1218,6 +1608,21 @@ app.listen(
       Boolean(
         PAYSTACK_SECRET_KEY
       )
+    );
+
+    console.log(
+      "Premium price:",
+      `₦${PREMIUM_PRICE_NAIRA}`
+    );
+
+    console.log(
+      "Marketer commission:",
+      `₦${MARKETER_COMMISSION_NAIRA}`
+    );
+
+    console.log(
+      "Commission rate:",
+      `${MARKETER_COMMISSION_PERCENT}%`
     );
 
   }
