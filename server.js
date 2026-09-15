@@ -15,8 +15,9 @@ const app = express();
 
 app.use(cors());
 
-// Paystack webhook needs the RAW request body
-// for signature verification.
+
+// Paystack webhook MUST receive the raw body
+// before express.json() processes requests.
 app.use(
   "/api/payments/paystack/webhook",
   express.raw({
@@ -87,6 +88,9 @@ const MARKETER_COMMISSION_NAIRA =
     MARKETER_COMMISSION_PERCENT /
     100
   );
+
+const MINIMUM_WITHDRAWAL_NAIRA =
+  2000;
 
 const FRONTEND_URL =
   "https://funds7.github.io/FundsIQ/";
@@ -164,7 +168,10 @@ app.get(
         MARKETER_COMMISSION_NAIRA,
 
       commissionPercent:
-        MARKETER_COMMISSION_PERCENT
+        MARKETER_COMMISSION_PERCENT,
+
+      minimumWithdrawal:
+        MINIMUM_WITHDRAWAL_NAIRA
 
     });
 
@@ -778,9 +785,6 @@ async function completePremiumPurchase(
     transaction.reference
   );
 
-  // --------------------------------------------------
-  // PAYMENT STATUS
-  // --------------------------------------------------
 
   if (
     transaction.status !==
@@ -793,9 +797,6 @@ async function completePremiumPurchase(
 
   }
 
-  // --------------------------------------------------
-  // PAYMENT AMOUNT
-  // --------------------------------------------------
 
   if (
     Number(transaction.amount) !==
@@ -808,9 +809,6 @@ async function completePremiumPurchase(
 
   }
 
-  // --------------------------------------------------
-  // PAYMENT CURRENCY
-  // --------------------------------------------------
 
   if (
     transaction.currency !==
@@ -823,9 +821,6 @@ async function completePremiumPurchase(
 
   }
 
-  // --------------------------------------------------
-  // METADATA
-  // --------------------------------------------------
 
   let metadata =
     transaction.metadata;
@@ -850,6 +845,7 @@ async function completePremiumPurchase(
 
   }
 
+
   if (
     !metadata ||
     !metadata.uid
@@ -861,6 +857,7 @@ async function completePremiumPurchase(
 
   }
 
+
   if (
     metadata.product !==
     "FundsIQ Premium"
@@ -871,6 +868,7 @@ async function completePremiumPurchase(
     );
 
   }
+
 
   const uid =
     metadata.uid;
@@ -886,38 +884,21 @@ async function completePremiumPurchase(
 
   }
 
-  // --------------------------------------------------
-  // USER REFERENCE
-  // --------------------------------------------------
 
   const userRef =
     db
       .collection("users")
       .doc(uid);
 
-  // --------------------------------------------------
-  // COMMISSION REFERENCE
-  // --------------------------------------------------
-
   const commissionRef =
     db
       .collection("premiumCommissions")
       .doc(reference);
 
-  // --------------------------------------------------
-  // IMPORTANT:
-  // FIND THE MARKETER BEFORE STARTING THE
-  // FIRESTORE TRANSACTION.
-  //
-  // Firestore transactions require reads to happen
-  // before writes.
-  // --------------------------------------------------
 
-  let marketerRef =
-    null;
-
-  let referredBy =
-    "";
+  // --------------------------------------------------
+  // READ CUSTOMER BEFORE TRANSACTION
+  // --------------------------------------------------
 
   const customerSnap =
     await userRef.get();
@@ -933,16 +914,16 @@ async function completePremiumPurchase(
   const customerData =
     customerSnap.data();
 
-  referredBy =
+  const referredBy =
     customerData.referredBy || "";
 
-  console.log(
-    "Customer referral information:",
-    {
-      uid,
-      referredBy
-    }
-  );
+
+  // --------------------------------------------------
+  // FIND MARKETER
+  // --------------------------------------------------
+
+  let marketerRef =
+    null;
 
   if (referredBy) {
 
@@ -966,33 +947,10 @@ async function completePremiumPurchase(
           .docs[0]
           .ref;
 
-      console.log(
-        "Marketer found:",
-        {
-          marketerUid:
-            marketerRef.id,
-
-          referralCode:
-            referredBy
-        }
-      );
-
-    } else {
-
-      console.warn(
-        "No marketer found for referral code:",
-        referredBy
-      );
-
     }
 
-  } else {
-
-    console.log(
-      "Customer has no referredBy value."
-    );
-
   }
+
 
   // --------------------------------------------------
   // FIRESTORE TRANSACTION
@@ -1003,10 +961,6 @@ async function completePremiumPurchase(
 
   await db.runTransaction(
     async firestoreTransaction => {
-
-      // ==============================================
-      // ALL READS FIRST
-      // ==============================================
 
       const commissionSnap =
         await firestoreTransaction.get(
@@ -1030,9 +984,6 @@ async function completePremiumPurchase(
 
       }
 
-      // ==============================================
-      // USER MUST EXIST
-      // ==============================================
 
       if (!userSnap.exists) {
 
@@ -1042,9 +993,6 @@ async function completePremiumPurchase(
 
       }
 
-      // ==============================================
-      // DUPLICATE PROTECTION
-      // ==============================================
 
       if (
         commissionSnap.exists
@@ -1053,18 +1001,14 @@ async function completePremiumPurchase(
         alreadyProcessed =
           true;
 
-        console.log(
-          "Transaction already processed:",
-          reference
-        );
-
         return;
 
       }
 
-      // ==============================================
+
+      // ------------------------------------------------
       // ACTIVATE PREMIUM
-      // ==============================================
+      // ------------------------------------------------
 
       firestoreTransaction.update(
         userRef,
@@ -1090,9 +1034,10 @@ async function completePremiumPurchase(
         }
       );
 
-      // ==============================================
-      // MARKETER COMMISSION
-      // ==============================================
+
+      // ------------------------------------------------
+      // CREDIT MARKETER
+      // ------------------------------------------------
 
       if (
         marketerRef &&
@@ -1121,30 +1066,21 @@ async function completePremiumPurchase(
             0
           );
 
-        const newBalance =
-          currentBalance +
-          MARKETER_COMMISSION_NAIRA;
-
-        const newTotalEarnings =
-          currentEarnings +
-          MARKETER_COMMISSION_NAIRA;
-
-        const newPremiumReferrals =
-          currentPremiumReferrals +
-          1;
-
         firestoreTransaction.update(
           marketerRef,
           {
 
             marketerBalance:
-              newBalance,
+              currentBalance +
+              MARKETER_COMMISSION_NAIRA,
 
             totalEarnings:
-              newTotalEarnings,
+              currentEarnings +
+              MARKETER_COMMISSION_NAIRA,
 
             premiumReferrals:
-              newPremiumReferrals,
+              currentPremiumReferrals +
+              1,
 
             lastCommissionAt:
               admin.firestore
@@ -1154,35 +1090,12 @@ async function completePremiumPurchase(
           }
         );
 
-        console.log(
-          "MARKETER COMMISSION WILL BE CREDITED:",
-          {
-            marketerUid:
-              marketerRef.id,
-
-            commission:
-              MARKETER_COMMISSION_NAIRA,
-
-            newBalance,
-
-            newTotalEarnings,
-
-            premiumReferrals:
-              newPremiumReferrals
-          }
-        );
-
-      } else {
-
-        console.log(
-          "No valid marketer. No commission will be credited."
-        );
-
       }
 
-      // ==============================================
-      // SAVE COMMISSION RECORD
-      // ==============================================
+
+      // ------------------------------------------------
+      // COMMISSION RECORD
+      // ------------------------------------------------
 
       firestoreTransaction.set(
         commissionRef,
@@ -1238,9 +1151,6 @@ async function completePremiumPurchase(
     }
   );
 
-  // --------------------------------------------------
-  // ALREADY PROCESSED
-  // --------------------------------------------------
 
   if (alreadyProcessed) {
 
@@ -1260,17 +1170,15 @@ async function completePremiumPurchase(
 
   }
 
-  // --------------------------------------------------
-  // SUCCESS
-  // --------------------------------------------------
 
   const commission =
     marketerRef
       ? MARKETER_COMMISSION_NAIRA
       : 0;
 
+
   console.log(
-    "PREMIUM PURCHASE COMPLETED SUCCESSFULLY:",
+    "PREMIUM PURCHASE COMPLETED:",
     {
 
       uid,
@@ -1290,6 +1198,7 @@ async function completePremiumPurchase(
 
     }
   );
+
 
   return {
 
@@ -1319,25 +1228,13 @@ app.get(
       req.query.reference;
 
     console.log(
-      "================================================"
-    );
-
-    console.log(
       "PAYSTACK CALLBACK RECEIVED:",
       reference
-    );
-
-    console.log(
-      "================================================"
     );
 
     try {
 
       if (!reference) {
-
-        console.error(
-          "Callback has no reference."
-        );
 
         return res.redirect(
           `${FRONTEND_URL}?payment=failed`
@@ -1350,29 +1247,8 @@ app.get(
           reference
         );
 
-      console.log(
-        "Paystack transaction verified:",
-        {
-          reference:
-            transaction.reference,
-
-          status:
-            transaction.status,
-
-          amount:
-            transaction.amount,
-
-          currency:
-            transaction.currency
-        }
-      );
-
       await completePremiumPurchase(
         transaction
-      );
-
-      console.log(
-        "Callback Premium fulfillment successful."
       );
 
       return res.redirect(
@@ -1413,27 +1289,16 @@ app.post(
 
       if (!signature) {
 
-        console.warn(
-          "Paystack webhook rejected: signature missing"
-        );
-
         return res.sendStatus(401);
 
       }
 
       if (!PAYSTACK_SECRET_KEY) {
 
-        console.error(
-          "Paystack webhook rejected: secret key missing"
-        );
-
         return res.sendStatus(500);
 
       }
 
-      // -----------------------------------------------
-      // RAW BODY FOR PAYSTACK SIGNATURE VERIFICATION
-      // -----------------------------------------------
 
       const rawBody =
         Buffer.isBuffer(req.body)
@@ -1441,6 +1306,7 @@ app.post(
           : Buffer.from(
               JSON.stringify(req.body)
             );
+
 
       const hash =
         crypto
@@ -1451,17 +1317,15 @@ app.post(
           .update(rawBody)
           .digest("hex");
 
+
       if (
         hash !== signature
       ) {
 
-        console.warn(
-          "Paystack webhook rejected: invalid signature"
-        );
-
         return res.sendStatus(401);
 
       }
+
 
       let event;
 
@@ -1476,150 +1340,153 @@ app.post(
 
       } catch (error) {
 
-        console.error(
-          "Unable to parse Paystack webhook body:",
-          error
-        );
-
         return res.sendStatus(400);
 
       }
 
+
       console.log(
-        "PAYSTACK WEBHOOK RECEIVED:",
+        "PAYSTACK WEBHOOK:",
         event.event
       );
 
-      // -----------------------------------------------
-      // ACKNOWLEDGE PAYSTACK
-      // -----------------------------------------------
 
+      // Acknowledge Paystack immediately.
       res.sendStatus(200);
 
-      // -----------------------------------------------
-      // ONLY PROCESS SUCCESSFUL CHARGES
-      // -----------------------------------------------
+
+      // ==================================================
+      // PREMIUM PAYMENT
+      // ==================================================
 
       if (
-        event.event !==
+        event.event ===
         "charge.success"
       ) {
 
-        console.log(
-          "Ignoring Paystack event:",
-          event.event
-        );
+        const transaction =
+          event.data;
 
-        return;
-
-      }
-
-      const transaction =
-        event.data;
-
-      if (!transaction) {
-
-        console.warn(
-          "Webhook has no transaction data."
-        );
-
-        return;
-
-      }
-
-      console.log(
-        "Webhook transaction:",
-        {
-          reference:
-            transaction.reference,
-
-          status:
-            transaction.status,
-
-          amount:
-            transaction.amount,
-
-          currency:
-            transaction.currency
+        if (!transaction) {
+          return;
         }
-      );
 
-      // -----------------------------------------------
-      // CHECK METADATA
-      // -----------------------------------------------
 
-      let metadata =
-        transaction.metadata;
+        let metadata =
+          transaction.metadata;
 
-      if (
-        typeof metadata ===
-        "string"
-      ) {
+        if (
+          typeof metadata ===
+          "string"
+        ) {
 
-        try {
+          try {
 
-          metadata =
-            JSON.parse(metadata);
+            metadata =
+              JSON.parse(metadata);
 
-        } catch (error) {
+          } catch (error) {
 
-          console.error(
-            "Webhook metadata JSON error:",
-            error
-          );
+            return;
+
+          }
+
+        }
+
+
+        if (
+          !metadata ||
+          metadata.product !==
+          "FundsIQ Premium"
+        ) {
 
           return;
 
         }
 
-      }
 
-      if (!metadata) {
+        transaction.metadata =
+          metadata;
 
-        console.warn(
-          "Webhook has no metadata."
-        );
+
+        try {
+
+          await completePremiumPurchase(
+            transaction
+          );
+
+          console.log(
+            "Premium webhook completed:",
+            transaction.reference
+          );
+
+        } catch (error) {
+
+          console.error(
+            "Premium webhook fulfillment error:",
+            error
+          );
+
+        }
 
         return;
 
       }
+
+
+      // ==================================================
+      // WITHDRAWAL SUCCESS
+      // ==================================================
 
       if (
-        metadata.product !==
-        "FundsIQ Premium"
+        event.event ===
+        "transfer.success"
       ) {
 
-        console.log(
-          "Ignoring unrelated Paystack transaction:",
-          transaction.reference
+        await handleTransferWebhook(
+          event.data,
+          "Successful"
         );
 
         return;
 
       }
 
-      // Put normalized metadata back
-      // into transaction.
-      transaction.metadata =
-        metadata;
 
-      try {
+      // ==================================================
+      // WITHDRAWAL FAILED
+      // ==================================================
 
-        await completePremiumPurchase(
-          transaction
+      if (
+        event.event ===
+        "transfer.failed"
+      ) {
+
+        await handleTransferWebhook(
+          event.data,
+          "Failed"
         );
 
-        console.log(
-          "WEBHOOK PREMIUM FULFILLMENT COMPLETED:",
-          transaction.reference
+        return;
+
+      }
+
+
+      // ==================================================
+      // WITHDRAWAL REVERSED
+      // ==================================================
+
+      if (
+        event.event ===
+        "transfer.reversed"
+      ) {
+
+        await handleTransferWebhook(
+          event.data,
+          "Reversed"
         );
 
-      } catch (error) {
-
-        console.error(
-          "WEBHOOK PREMIUM FULFILLMENT ERROR:",
-          error
-        );
+        return;
 
       }
 
@@ -1635,6 +1502,1340 @@ app.post(
         res.sendStatus(500);
 
       }
+
+    }
+
+  }
+);
+
+
+// ======================================================
+// PAYSTACK GENERIC REQUEST
+// ======================================================
+
+async function paystackRequest(
+  endpoint,
+  options = {}
+) {
+
+  if (!PAYSTACK_SECRET_KEY) {
+
+    throw new Error(
+      "Paystack secret key is not configured"
+    );
+
+  }
+
+
+  const response =
+    await fetch(
+      `https://api.paystack.co${endpoint}`,
+      {
+
+        method:
+          options.method ||
+          "GET",
+
+        headers: {
+
+          Authorization:
+            `Bearer ${PAYSTACK_SECRET_KEY}`,
+
+          "Content-Type":
+            "application/json"
+
+        },
+
+        body:
+          options.body
+            ? JSON.stringify(
+                options.body
+              )
+            : undefined
+
+      }
+    );
+
+
+  const data =
+    await response.json();
+
+
+  if (
+    !response.ok ||
+    !data.status
+  ) {
+
+    throw new Error(
+      data.message ||
+      "Paystack request failed"
+    );
+
+  }
+
+
+  return data;
+
+}
+
+
+// ======================================================
+// GET NIGERIAN BANKS
+// ======================================================
+
+app.get(
+  "/api/withdrawal/banks",
+  verifyFirebaseToken,
+  async (req, res) => {
+
+    try {
+
+      const data =
+        await paystackRequest(
+          "/bank?currency=NGN"
+        );
+
+
+      const banks =
+        (data.data || [])
+          .filter(
+            bank =>
+              bank.active !== false &&
+              bank.is_deleted !== true
+          )
+          .map(
+            bank => ({
+
+              name:
+                bank.name,
+
+              code:
+                bank.code
+
+            })
+          );
+
+
+      return res.json({
+
+        status:
+          true,
+
+        banks
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Get banks error:",
+        error
+      );
+
+      return res.status(500).json({
+
+        status:
+          false,
+
+        msg:
+          "Unable to load Nigerian banks."
+
+      });
+
+    }
+
+  }
+);
+
+
+// ======================================================
+// VERIFY BANK ACCOUNT
+// ======================================================
+
+app.post(
+  "/api/withdrawal/verify-account",
+  verifyFirebaseToken,
+  async (req, res) => {
+
+    try {
+
+      const {
+        accountNumber,
+        bankCode
+      } = req.body;
+
+
+      const cleanAccountNumber =
+        String(
+          accountNumber || ""
+        ).trim();
+
+
+      const cleanBankCode =
+        String(
+          bankCode || ""
+        ).trim();
+
+
+      if (
+        !/^\d{10}$/.test(
+          cleanAccountNumber
+        )
+      ) {
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Enter a valid 10-digit account number."
+
+        });
+
+      }
+
+
+      if (!cleanBankCode) {
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Please select a bank."
+
+        });
+
+      }
+
+
+      const data =
+        await paystackRequest(
+
+          `/bank/resolve?account_number=${encodeURIComponent(
+            cleanAccountNumber
+          )}&bank_code=${encodeURIComponent(
+            cleanBankCode
+          )}`
+
+        );
+
+
+      if (
+        !data.data ||
+        !data.data.account_name
+      ) {
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Bank account could not be verified."
+
+        });
+
+      }
+
+
+      return res.json({
+
+        status:
+          true,
+
+        accountNumber:
+          data.data.account_number,
+
+        accountName:
+          data.data.account_name,
+
+        bankId:
+          data.data.bank_id || null
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Bank verification error:",
+        error
+      );
+
+      return res.status(400).json({
+
+        status:
+          false,
+
+        msg:
+          error.message ||
+          "Unable to verify bank account."
+
+      });
+
+    }
+
+  }
+);
+
+
+// ======================================================
+// MARKETER WITHDRAWAL
+// ======================================================
+
+app.post(
+  "/api/withdrawal/request",
+  verifyFirebaseToken,
+  async (req, res) => {
+
+    const uid =
+      req.firebaseUser.uid;
+
+    let withdrawalRef =
+      null;
+
+    let withdrawalAmount =
+      0;
+
+    let transferWasCreated =
+      false;
+
+    try {
+
+      const {
+        accountNumber,
+        bankCode,
+        bankName
+      } = req.body;
+
+
+      const cleanAccountNumber =
+        String(
+          accountNumber || ""
+        ).trim();
+
+
+      const cleanBankCode =
+        String(
+          bankCode || ""
+        ).trim();
+
+
+      const cleanBankName =
+        String(
+          bankName || ""
+        ).trim();
+
+
+      if (
+        !/^\d{10}$/.test(
+          cleanAccountNumber
+        )
+      ) {
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Invalid 10-digit account number."
+
+        });
+
+      }
+
+
+      if (!cleanBankCode) {
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Bank selection is required."
+
+        });
+
+      }
+
+
+      if (!cleanBankName) {
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Bank name is required."
+
+        });
+
+      }
+
+
+      // ==================================================
+      // VERIFY ACCOUNT AGAIN ON SERVER
+      // ==================================================
+
+      const verification =
+        await paystackRequest(
+
+          `/bank/resolve?account_number=${encodeURIComponent(
+            cleanAccountNumber
+          )}&bank_code=${encodeURIComponent(
+            cleanBankCode
+          )}`
+
+        );
+
+
+      if (
+        !verification.data ||
+        !verification.data.account_name
+      ) {
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Bank account could not be verified."
+
+        });
+
+      }
+
+
+      const verifiedAccountName =
+        verification.data.account_name;
+
+
+      const userRef =
+        db
+          .collection("users")
+          .doc(uid);
+
+
+      // ==================================================
+      // RESERVE BALANCE
+      // ==================================================
+
+      await db.runTransaction(
+        async transaction => {
+
+          const userSnap =
+            await transaction.get(
+              userRef
+            );
+
+
+          if (!userSnap.exists) {
+
+            throw new Error(
+              "User account not found."
+            );
+
+          }
+
+
+          const userData =
+            userSnap.data();
+
+
+          const balance =
+            Number(
+              userData.marketerBalance ||
+              0
+            );
+
+
+          if (
+            balance <
+            MINIMUM_WITHDRAWAL_NAIRA
+          ) {
+
+            throw new Error(
+              `Minimum withdrawal is ₦${MINIMUM_WITHDRAWAL_NAIRA.toLocaleString()}`
+            );
+
+          }
+
+
+          if (
+            userData.withdrawalStatus ===
+            "Initiating" ||
+            userData.withdrawalStatus ===
+            "Processing"
+          ) {
+
+            throw new Error(
+              "You already have a withdrawal being processed."
+            );
+
+          }
+
+
+          withdrawalAmount =
+            balance;
+
+
+          withdrawalRef =
+            db
+              .collection("users")
+              .doc(uid)
+              .collection("withdrawals")
+              .doc();
+
+
+          transaction.set(
+            withdrawalRef,
+            {
+
+              amount:
+                withdrawalAmount,
+
+              bankName:
+                cleanBankName,
+
+              bankCode:
+                cleanBankCode,
+
+              accountNumber:
+                cleanAccountNumber,
+
+              accountName:
+                verifiedAccountName,
+
+              status:
+                "Initiating",
+
+              requestedAt:
+                admin.firestore
+                  .FieldValue
+                  .serverTimestamp(),
+
+              paystackReference:
+                null,
+
+              uid
+
+            }
+          );
+
+
+          transaction.update(
+            userRef,
+            {
+
+              marketerBalance:
+                0,
+
+              pendingWithdrawal:
+                withdrawalAmount,
+
+              withdrawalStatus:
+                "Initiating",
+
+              bankName:
+                cleanBankName,
+
+              bankCode:
+                cleanBankCode,
+
+              accountNumber:
+                cleanAccountNumber,
+
+              accountName:
+                verifiedAccountName,
+
+              lastWithdrawal:
+                admin.firestore
+                  .FieldValue
+                  .serverTimestamp()
+
+            }
+          );
+
+        }
+      );
+
+
+      // ==================================================
+      // CREATE PAYSTACK RECIPIENT
+      // ==================================================
+
+      const recipientResponse =
+        await paystackRequest(
+          "/transferrecipient",
+          {
+
+            method:
+              "POST",
+
+            body: {
+
+              type:
+                "nuban",
+
+              name:
+                verifiedAccountName,
+
+              account_number:
+                cleanAccountNumber,
+
+              bank_code:
+                cleanBankCode,
+
+              currency:
+                "NGN"
+
+            }
+
+          }
+        );
+
+
+      const recipientCode =
+        recipientResponse.data &&
+        recipientResponse.data.recipient_code;
+
+
+      if (!recipientCode) {
+
+        throw new Error(
+          "Paystack did not return a recipient code."
+        );
+
+      }
+
+
+      // ==================================================
+      // UNIQUE TRANSFER REFERENCE
+      // ==================================================
+
+      const transferReference =
+        `FUNDSIQ-WD-${uid}-${Date.now()}`;
+
+
+      // ==================================================
+      // INITIATE TRANSFER
+      // ==================================================
+
+      const transferResponse =
+        await paystackRequest(
+          "/transfer",
+          {
+
+            method:
+              "POST",
+
+            body: {
+
+              source:
+                "balance",
+
+              amount:
+                withdrawalAmount * 100,
+
+              recipient:
+                recipientCode,
+
+              reference:
+                transferReference,
+
+              reason:
+                "FundsIQ Marketer Withdrawal",
+
+              currency:
+                "NGN"
+
+            }
+
+          }
+        );
+
+
+      const transfer =
+        transferResponse.data;
+
+
+      transferWasCreated =
+        true;
+
+
+      // ==================================================
+      // SAVE TRANSFER INFORMATION
+      // ==================================================
+
+      await db.runTransaction(
+        async transaction => {
+
+          const withdrawalSnap =
+            await transaction.get(
+              withdrawalRef
+            );
+
+
+          const userSnap =
+            await transaction.get(
+              userRef
+            );
+
+
+          if (
+            !withdrawalSnap.exists ||
+            !userSnap.exists
+          ) {
+
+            throw new Error(
+              "Withdrawal record could not be updated."
+            );
+
+          }
+
+
+          transaction.update(
+            withdrawalRef,
+            {
+
+              status:
+                transfer.status ===
+                "success"
+                  ? "Successful"
+                  : "Processing",
+
+              paystackReference:
+                transferReference,
+
+              paystackTransferCode:
+                transfer.transfer_code ||
+                null,
+
+              paystackRecipientCode:
+                recipientCode,
+
+              paystackTransferId:
+                transfer.id ||
+                null,
+
+              updatedAt:
+                admin.firestore
+                  .FieldValue
+                  .serverTimestamp()
+
+            }
+          );
+
+
+          transaction.update(
+            userRef,
+            {
+
+              withdrawalStatus:
+                transfer.status ===
+                "success"
+                  ? "Successful"
+                  : "Processing",
+
+              pendingWithdrawal:
+                transfer.status ===
+                "success"
+                  ? 0
+                  : withdrawalAmount,
+
+              lastWithdrawalReference:
+                transferReference
+
+            }
+          );
+
+        }
+      );
+
+
+      console.log(
+        "FUNDSIQ WITHDRAWAL CREATED:",
+        {
+
+          uid,
+
+          amount:
+            withdrawalAmount,
+
+          reference:
+            transferReference,
+
+          status:
+            transfer.status
+
+        }
+      );
+
+
+      return res.json({
+
+        status:
+          true,
+
+        message:
+          transfer.status ===
+          "success"
+            ? "Withdrawal sent successfully."
+            : "Withdrawal is being processed.",
+
+        amount:
+          withdrawalAmount,
+
+        reference:
+          transferReference,
+
+        transferStatus:
+          transfer.status,
+
+        accountName:
+          verifiedAccountName
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        "FUNDSIQ WITHDRAWAL ERROR:",
+        error
+      );
+
+
+      // ==================================================
+      // ONLY RESTORE BALANCE WHEN WE KNOW PAYSTACK
+      // DID NOT CREATE THE TRANSFER.
+      // ==================================================
+
+      if (
+        withdrawalRef &&
+        withdrawalAmount > 0 &&
+        !transferWasCreated
+      ) {
+
+        try {
+
+          await restoreFailedWithdrawal(
+            uid,
+            withdrawalRef,
+            withdrawalAmount,
+            error.message ||
+            "Withdrawal failed"
+          );
+
+        } catch (restoreError) {
+
+          console.error(
+            "Withdrawal balance restoration error:",
+            restoreError
+          );
+
+        }
+
+      }
+
+
+      return res.status(400).json({
+
+        status:
+          false,
+
+        msg:
+          error.message ||
+          "Withdrawal could not be processed."
+
+      });
+
+    }
+
+  }
+);
+
+
+// ======================================================
+// RESTORE FAILED WITHDRAWAL
+// ======================================================
+
+async function restoreFailedWithdrawal(
+  uid,
+  withdrawalRef,
+  amount,
+  reason
+) {
+
+  const userRef =
+    db
+      .collection("users")
+      .doc(uid);
+
+
+  await db.runTransaction(
+    async transaction => {
+
+      const userSnap =
+        await transaction.get(
+          userRef
+        );
+
+      const withdrawalSnap =
+        await transaction.get(
+          withdrawalRef
+        );
+
+
+      if (
+        !userSnap.exists ||
+        !withdrawalSnap.exists
+      ) {
+
+        return;
+
+      }
+
+
+      const withdrawalData =
+        withdrawalSnap.data();
+
+
+      if (
+        withdrawalData.status !==
+        "Initiating"
+      ) {
+
+        return;
+
+      }
+
+
+      const userData =
+        userSnap.data();
+
+
+      const currentBalance =
+        Number(
+          userData.marketerBalance ||
+          0
+        );
+
+
+      transaction.update(
+        userRef,
+        {
+
+          marketerBalance:
+            currentBalance +
+            amount,
+
+          pendingWithdrawal:
+            0,
+
+          withdrawalStatus:
+            "Failed"
+
+        }
+      );
+
+
+      transaction.update(
+        withdrawalRef,
+        {
+
+          status:
+            "Failed",
+
+          failureReason:
+            reason,
+
+          updatedAt:
+            admin.firestore
+              .FieldValue
+              .serverTimestamp()
+
+        }
+      );
+
+    }
+  );
+
+}
+
+
+// ======================================================
+// HANDLE TRANSFER WEBHOOK
+// ======================================================
+
+async function handleTransferWebhook(
+  transfer,
+  finalStatus
+) {
+
+  if (!transfer) {
+
+    console.warn(
+      "Transfer webhook contains no data."
+    );
+
+    return;
+
+  }
+
+
+  const reference =
+    transfer.reference;
+
+
+  if (!reference) {
+
+    console.warn(
+      "Transfer webhook has no reference."
+    );
+
+    return;
+
+  }
+
+
+  console.log(
+    "Processing transfer webhook:",
+    {
+      reference,
+      finalStatus
+    }
+  );
+
+
+  // ----------------------------------------------------
+  // FIND WITHDRAWAL BY PAYSTACK REFERENCE
+  // ----------------------------------------------------
+
+  const withdrawalQuery =
+    await db
+      .collectionGroup("withdrawals")
+      .where(
+        "paystackReference",
+        "==",
+        reference
+      )
+      .limit(1)
+      .get();
+
+
+  if (
+    withdrawalQuery.empty
+  ) {
+
+    console.warn(
+      "No FundsIQ withdrawal found for transfer:",
+      reference
+    );
+
+    return;
+
+  }
+
+
+  const withdrawalDoc =
+    withdrawalQuery.docs[0];
+
+  const withdrawalRef =
+    withdrawalDoc.ref;
+
+  const withdrawalData =
+    withdrawalDoc.data();
+
+
+  const uid =
+    withdrawalData.uid;
+
+
+  if (!uid) {
+
+    console.warn(
+      "Withdrawal has no UID:",
+      reference
+    );
+
+    return;
+
+  }
+
+
+  const userRef =
+    db
+      .collection("users")
+      .doc(uid);
+
+
+  await db.runTransaction(
+    async transaction => {
+
+      const freshWithdrawalSnap =
+        await transaction.get(
+          withdrawalRef
+        );
+
+      const userSnap =
+        await transaction.get(
+          userRef
+        );
+
+
+      if (
+        !freshWithdrawalSnap.exists ||
+        !userSnap.exists
+      ) {
+
+        return;
+
+      }
+
+
+      const freshWithdrawal =
+        freshWithdrawalSnap.data();
+
+
+      // ------------------------------------------------
+      // SUCCESS
+      // ------------------------------------------------
+
+      if (
+        finalStatus ===
+        "Successful"
+      ) {
+
+        transaction.update(
+          withdrawalRef,
+          {
+
+            status:
+              "Successful",
+
+            paystackStatus:
+              transfer.status ||
+              "success",
+
+            updatedAt:
+              admin.firestore
+                .FieldValue
+                .serverTimestamp()
+
+          }
+        );
+
+
+        transaction.update(
+          userRef,
+          {
+
+            pendingWithdrawal:
+              0,
+
+            withdrawalStatus:
+              "Successful",
+
+            lastWithdrawalCompletedAt:
+              admin.firestore
+                .FieldValue
+                .serverTimestamp()
+
+          }
+        );
+
+
+        return;
+
+      }
+
+
+      // ------------------------------------------------
+      // FAILED OR REVERSED
+      // ------------------------------------------------
+
+      if (
+        finalStatus ===
+        "Failed" ||
+        finalStatus ===
+        "Reversed"
+      ) {
+
+        const userData =
+          userSnap.data();
+
+
+        const currentBalance =
+          Number(
+            userData.marketerBalance ||
+            0
+          );
+
+
+        const withdrawalAmount =
+          Number(
+            freshWithdrawal.amount ||
+            0
+          );
+
+
+        transaction.update(
+          userRef,
+          {
+
+            marketerBalance:
+              currentBalance +
+              withdrawalAmount,
+
+            pendingWithdrawal:
+              0,
+
+            withdrawalStatus:
+              finalStatus,
+
+            lastWithdrawalCompletedAt:
+              admin.firestore
+                .FieldValue
+                .serverTimestamp()
+
+          }
+        );
+
+
+        transaction.update(
+          withdrawalRef,
+          {
+
+            status:
+              finalStatus,
+
+            paystackStatus:
+              transfer.status ||
+              finalStatus.toLowerCase(),
+
+            failureReason:
+              transfer.reason ||
+              null,
+
+            updatedAt:
+              admin.firestore
+                .FieldValue
+                .serverTimestamp()
+
+          }
+        );
+
+      }
+
+    }
+  );
+
+
+  console.log(
+    "Transfer webhook processed:",
+    {
+      reference,
+      status:
+        finalStatus
+    }
+  );
+
+}
+
+
+// ======================================================
+// VERIFY PAYSTACK TRANSFER
+// ======================================================
+
+app.get(
+  "/api/withdrawal/verify/:reference",
+  verifyFirebaseToken,
+  async (req, res) => {
+
+    try {
+
+      const reference =
+        String(
+          req.params.reference ||
+          ""
+        ).trim();
+
+
+      if (!reference) {
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Transfer reference is required."
+
+        });
+
+      }
+
+
+      const data =
+        await paystackRequest(
+
+          `/transfer/verify/${encodeURIComponent(
+            reference
+          )}`
+
+        );
+
+
+      const transfer =
+        data.data;
+
+
+      return res.json({
+
+        status:
+          true,
+
+        reference:
+          transfer.reference,
+
+        transferStatus:
+          transfer.status,
+
+        amount:
+          transfer.amount,
+
+        currency:
+          transfer.currency,
+
+        recipient:
+          transfer.recipient ||
+          null
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Transfer verification error:",
+        error
+      );
+
+      return res.status(400).json({
+
+        status:
+          false,
+
+        msg:
+          error.message ||
+          "Unable to verify transfer."
+
+      });
 
     }
 
@@ -1673,19 +2874,24 @@ app.post(
         answers
       } = req.body;
 
+
       if (
         !userId ||
         !answers
       ) {
 
         return res.status(400).json({
+
           msg:
             "User ID and answers are required"
+
         });
 
       }
 
+
       let score = 0;
+
 
       questions.forEach(
         (question, index) => {
@@ -1702,6 +2908,7 @@ app.post(
         }
       );
 
+
       const result = {
 
         userId,
@@ -1716,9 +2923,11 @@ app.post(
 
       };
 
+
       results.push(
         result
       );
+
 
       res.json({
 
@@ -1737,8 +2946,10 @@ app.post(
       );
 
       res.status(500).json({
+
         msg:
           "Exam submission failed"
+
       });
 
     }
@@ -1770,6 +2981,7 @@ app.get(
 const PORT =
   process.env.PORT ||
   5000;
+
 
 app.listen(
   PORT,
@@ -1804,6 +3016,11 @@ app.listen(
     console.log(
       "Commission rate:",
       `${MARKETER_COMMISSION_PERCENT}%`
+    );
+
+    console.log(
+      "Minimum withdrawal:",
+      `₦${MINIMUM_WITHDRAWAL_NAIRA}`
     );
 
   }
