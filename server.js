@@ -896,10 +896,6 @@ async function completePremiumPurchase(
       .doc(reference);
 
 
-  // --------------------------------------------------
-  // READ CUSTOMER BEFORE TRANSACTION
-  // --------------------------------------------------
-
   const customerSnap =
     await userRef.get();
 
@@ -917,10 +913,6 @@ async function completePremiumPurchase(
   const referredBy =
     customerData.referredBy || "";
 
-
-  // --------------------------------------------------
-  // FIND MARKETER
-  // --------------------------------------------------
 
   let marketerRef =
     null;
@@ -951,10 +943,6 @@ async function completePremiumPurchase(
 
   }
 
-
-  // --------------------------------------------------
-  // FIRESTORE TRANSACTION
-  // --------------------------------------------------
 
   let alreadyProcessed =
     false;
@@ -1006,10 +994,6 @@ async function completePremiumPurchase(
       }
 
 
-      // ------------------------------------------------
-      // ACTIVATE PREMIUM
-      // ------------------------------------------------
-
       firestoreTransaction.update(
         userRef,
         {
@@ -1034,10 +1018,6 @@ async function completePremiumPurchase(
         }
       );
 
-
-      // ------------------------------------------------
-      // CREDIT MARKETER
-      // ------------------------------------------------
 
       if (
         marketerRef &&
@@ -1092,10 +1072,6 @@ async function completePremiumPurchase(
 
       }
 
-
-      // ------------------------------------------------
-      // COMMISSION RECORD
-      // ------------------------------------------------
 
       firestoreTransaction.set(
         commissionRef,
@@ -1351,13 +1327,8 @@ app.post(
       );
 
 
-      // Acknowledge Paystack immediately.
       res.sendStatus(200);
 
-
-      // ==================================================
-      // PREMIUM PAYMENT
-      // ==================================================
 
       if (
         event.event ===
@@ -1434,10 +1405,6 @@ app.post(
       }
 
 
-      // ==================================================
-      // WITHDRAWAL SUCCESS
-      // ==================================================
-
       if (
         event.event ===
         "transfer.success"
@@ -1453,10 +1420,6 @@ app.post(
       }
 
 
-      // ==================================================
-      // WITHDRAWAL FAILED
-      // ==================================================
-
       if (
         event.event ===
         "transfer.failed"
@@ -1471,10 +1434,6 @@ app.post(
 
       }
 
-
-      // ==================================================
-      // WITHDRAWAL REVERSED
-      // ==================================================
 
       if (
         event.event ===
@@ -1799,8 +1758,11 @@ app.post(
     let withdrawalAmount =
       0;
 
-    let transferWasCreated =
+    let transferAttempted =
       false;
+
+    let transferReference =
+      null;
 
     try {
 
@@ -1923,6 +1885,14 @@ app.post(
 
 
       // ==================================================
+      // CREATE UNIQUE TRANSFER REFERENCE FIRST
+      // ==================================================
+
+      transferReference =
+        `FUNDSIQ-WD-${uid}-${Date.now()}`;
+
+
+      // ==================================================
       // RESERVE BALANCE
       // ==================================================
 
@@ -2021,6 +1991,15 @@ app.post(
                   .serverTimestamp(),
 
               paystackReference:
+                transferReference,
+
+              paystackTransferCode:
+                null,
+
+              paystackRecipientCode:
+                null,
+
+              paystackTransferId:
                 null,
 
               uid
@@ -2057,7 +2036,10 @@ app.post(
               lastWithdrawal:
                 admin.firestore
                   .FieldValue
-                  .serverTimestamp()
+                  .serverTimestamp(),
+
+              lastWithdrawalReference:
+                transferReference
 
             }
           );
@@ -2070,35 +2052,66 @@ app.post(
       // CREATE PAYSTACK RECIPIENT
       // ==================================================
 
-      const recipientResponse =
-        await paystackRequest(
-          "/transferrecipient",
-          {
+      let recipientResponse;
 
-            method:
-              "POST",
+      try {
 
-            body: {
+        recipientResponse =
+          await paystackRequest(
+            "/transferrecipient",
+            {
 
-              type:
-                "nuban",
+              method:
+                "POST",
 
-              name:
-                verifiedAccountName,
+              body: {
 
-              account_number:
-                cleanAccountNumber,
+                type:
+                  "nuban",
 
-              bank_code:
-                cleanBankCode,
+                name:
+                  verifiedAccountName,
 
-              currency:
-                "NGN"
+                account_number:
+                  cleanAccountNumber,
+
+                bank_code:
+                  cleanBankCode,
+
+                currency:
+                  "NGN"
+
+              }
 
             }
+          );
 
-          }
+      } catch (recipientError) {
+
+        // Recipient creation happened BEFORE the
+        // transfer itself. No transfer was attempted.
+        // It is therefore safe to restore the balance.
+
+        await restoreFailedWithdrawal(
+          uid,
+          withdrawalRef,
+          withdrawalAmount,
+          recipientError.message ||
+          "Unable to create Paystack recipient."
         );
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            recipientError.message ||
+            "Unable to create withdrawal recipient."
+
+        });
+
+      }
 
 
       const recipientCode =
@@ -2108,24 +2121,55 @@ app.post(
 
       if (!recipientCode) {
 
-        throw new Error(
+        await restoreFailedWithdrawal(
+          uid,
+          withdrawalRef,
+          withdrawalAmount,
           "Paystack did not return a recipient code."
         );
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Paystack did not return a recipient code."
+
+        });
 
       }
 
 
       // ==================================================
-      // UNIQUE TRANSFER REFERENCE
+      // SAVE RECIPIENT BEFORE TRANSFER
       // ==================================================
 
-      const transferReference =
-        `FUNDSIQ-WD-${uid}-${Date.now()}`;
+      await withdrawalRef.update({
+
+        paystackRecipientCode:
+          recipientCode,
+
+        updatedAt:
+          admin.firestore
+            .FieldValue
+            .serverTimestamp()
+
+      });
 
 
       // ==================================================
-      // INITIATE TRANSFER
+      // IMPORTANT:
+      // FROM THIS POINT, DO NOT AUTOMATICALLY RESTORE
+      // THE BALANCE IF THE REQUEST FAILS.
+      //
+      // Paystack may have accepted the transfer even if
+      // our server did not receive the response.
       // ==================================================
+
+      transferAttempted =
+        true;
+
 
       const transferResponse =
         await paystackRequest(
@@ -2165,12 +2209,8 @@ app.post(
         transferResponse.data;
 
 
-      transferWasCreated =
-        true;
-
-
       // ==================================================
-      // SAVE TRANSFER INFORMATION
+      // SAVE PAYSTACK TRANSFER INFORMATION
       // ==================================================
 
       await db.runTransaction(
@@ -2180,7 +2220,6 @@ app.post(
             await transaction.get(
               withdrawalRef
             );
-
 
           const userSnap =
             await transaction.get(
@@ -2200,13 +2239,17 @@ app.post(
           }
 
 
+          const isSuccessful =
+            transfer.status ===
+            "success";
+
+
           transaction.update(
             withdrawalRef,
             {
 
               status:
-                transfer.status ===
-                "success"
+                isSuccessful
                   ? "Successful"
                   : "Processing",
 
@@ -2224,6 +2267,10 @@ app.post(
                 transfer.id ||
                 null,
 
+              paystackStatus:
+                transfer.status ||
+                null,
+
               updatedAt:
                 admin.firestore
                   .FieldValue
@@ -2238,19 +2285,14 @@ app.post(
             {
 
               withdrawalStatus:
-                transfer.status ===
-                "success"
+                isSuccessful
                   ? "Successful"
                   : "Processing",
 
               pendingWithdrawal:
-                transfer.status ===
-                "success"
+                isSuccessful
                   ? 0
-                  : withdrawalAmount,
-
-              lastWithdrawalReference:
-                transferReference
+                  : withdrawalAmount
 
             }
           );
@@ -2312,14 +2354,19 @@ app.post(
 
 
       // ==================================================
-      // ONLY RESTORE BALANCE WHEN WE KNOW PAYSTACK
-      // DID NOT CREATE THE TRANSFER.
+      // CRITICAL SAFETY RULE
+      //
+      // If the transfer endpoint has been attempted,
+      // NEVER automatically restore the money here.
+      //
+      // Paystack may have accepted the transfer even if
+      // our HTTP request failed or timed out.
       // ==================================================
 
       if (
         withdrawalRef &&
         withdrawalAmount > 0 &&
-        !transferWasCreated
+        !transferAttempted
       ) {
 
         try {
@@ -2329,7 +2376,7 @@ app.post(
             withdrawalRef,
             withdrawalAmount,
             error.message ||
-            "Withdrawal failed"
+            "Withdrawal failed before transfer."
           );
 
         } catch (restoreError) {
@@ -2340,6 +2387,67 @@ app.post(
           );
 
         }
+
+      }
+
+
+      if (
+        transferAttempted &&
+        withdrawalRef &&
+        transferReference
+      ) {
+
+        try {
+
+          await withdrawalRef.update({
+
+            status:
+              "Processing",
+
+            paystackReference:
+              transferReference,
+
+            reconciliationRequired:
+              true,
+
+            lastError:
+              error.message ||
+              "Transfer response could not be confirmed.",
+
+            updatedAt:
+              admin.firestore
+                .FieldValue
+                .serverTimestamp()
+
+          });
+
+        } catch (updateError) {
+
+          console.error(
+            "Unable to mark withdrawal for reconciliation:",
+            updateError
+          );
+
+        }
+
+        return res.status(202).json({
+
+          status:
+            true,
+
+          pending:
+            true,
+
+          message:
+            "Your withdrawal request was submitted and is being verified with Paystack.",
+
+          amount:
+            withdrawalAmount,
+
+          reference:
+            transferReference
+
+        });
 
       }
 
@@ -2513,10 +2621,6 @@ async function handleTransferWebhook(
   );
 
 
-  // ----------------------------------------------------
-  // FIND WITHDRAWAL BY PAYSTACK REFERENCE
-  // ----------------------------------------------------
-
   const withdrawalQuery =
     await db
       .collectionGroup("withdrawals")
@@ -2603,14 +2707,25 @@ async function handleTransferWebhook(
         freshWithdrawalSnap.data();
 
 
-      // ------------------------------------------------
+      // ==================================================
       // SUCCESS
-      // ------------------------------------------------
+      // ==================================================
 
       if (
         finalStatus ===
         "Successful"
       ) {
+
+        // Prevent duplicate success processing.
+        if (
+          freshWithdrawal.status ===
+          "Successful"
+        ) {
+
+          return;
+
+        }
+
 
         transaction.update(
           withdrawalRef,
@@ -2622,6 +2737,9 @@ async function handleTransferWebhook(
             paystackStatus:
               transfer.status ||
               "success",
+
+            reconciliationRequired:
+              false,
 
             updatedAt:
               admin.firestore
@@ -2656,9 +2774,9 @@ async function handleTransferWebhook(
       }
 
 
-      // ------------------------------------------------
+      // ==================================================
       // FAILED OR REVERSED
-      // ------------------------------------------------
+      // ==================================================
 
       if (
         finalStatus ===
@@ -2666,6 +2784,19 @@ async function handleTransferWebhook(
         finalStatus ===
         "Reversed"
       ) {
+
+        // Prevent crediting the balance twice.
+        if (
+          freshWithdrawal.status ===
+          "Failed" ||
+          freshWithdrawal.status ===
+          "Reversed"
+        ) {
+
+          return;
+
+        }
+
 
         const userData =
           userSnap.data();
@@ -2719,6 +2850,9 @@ async function handleTransferWebhook(
               transfer.status ||
               finalStatus.toLowerCase(),
 
+            reconciliationRequired:
+              false,
+
             failureReason:
               transfer.reason ||
               null,
@@ -2750,7 +2884,7 @@ async function handleTransferWebhook(
 
 
 // ======================================================
-// VERIFY PAYSTACK TRANSFER
+// VERIFY / RECONCILE PAYSTACK TRANSFER
 // ======================================================
 
 app.get(
@@ -2759,6 +2893,9 @@ app.get(
   async (req, res) => {
 
     try {
+
+      const uid =
+        req.firebaseUser.uid;
 
       const reference =
         String(
@@ -2782,6 +2919,51 @@ app.get(
       }
 
 
+      // ==================================================
+      // FIND THIS USER'S WITHDRAWAL
+      // ==================================================
+
+      const withdrawalQuery =
+        await db
+          .collection("users")
+          .doc(uid)
+          .collection("withdrawals")
+          .where(
+            "paystackReference",
+            "==",
+            reference
+          )
+          .limit(1)
+          .get();
+
+
+      if (
+        withdrawalQuery.empty
+      ) {
+
+        return res.status(404).json({
+
+          status:
+            false,
+
+          msg:
+            "Withdrawal record not found."
+
+        });
+
+      }
+
+
+      const withdrawalDoc =
+        withdrawalQuery.docs[0];
+
+      const withdrawalRef =
+        withdrawalDoc.ref;
+
+      const withdrawalData =
+        withdrawalDoc.data();
+
+
       const data =
         await paystackRequest(
 
@@ -2794,6 +2976,72 @@ app.get(
 
       const transfer =
         data.data;
+
+
+      if (!transfer) {
+
+        return res.status(400).json({
+
+          status:
+            false,
+
+          msg:
+            "Paystack returned no transfer information."
+
+        });
+
+      }
+
+
+      // ==================================================
+      // PAYSTACK SUCCESS
+      // ==================================================
+
+      if (
+        transfer.status ===
+        "success"
+      ) {
+
+        await handleTransferWebhook(
+          transfer,
+          "Successful"
+        );
+
+      }
+
+
+      // ==================================================
+      // PAYSTACK FAILED
+      // ==================================================
+
+      if (
+        transfer.status ===
+        "failed"
+      ) {
+
+        await handleTransferWebhook(
+          transfer,
+          "Failed"
+        );
+
+      }
+
+
+      // ==================================================
+      // PAYSTACK REVERSED
+      // ==================================================
+
+      if (
+        transfer.status ===
+        "reversed"
+      ) {
+
+        await handleTransferWebhook(
+          transfer,
+          "Reversed"
+        );
+
+      }
 
 
       return res.json({
@@ -2815,7 +3063,19 @@ app.get(
 
         recipient:
           transfer.recipient ||
-          null
+          null,
+
+        withdrawalStatus:
+          transfer.status ===
+          "success"
+            ? "Successful"
+            : transfer.status ===
+              "failed"
+              ? "Failed"
+              : transfer.status ===
+                "reversed"
+                ? "Reversed"
+                : "Processing"
 
       });
 
@@ -2981,7 +3241,6 @@ app.get(
 const PORT =
   process.env.PORT ||
   5000;
-
 
 app.listen(
   PORT,
