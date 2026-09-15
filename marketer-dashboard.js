@@ -1,7 +1,11 @@
 /**
  * FundsIQ Affiliate & Marketer Dashboard
- * Referral counter fixed using Firestore referral activity
- * Firebase Modular SDK v12
+ * Full version:
+ * - Referral counter repair
+ * - Firebase Modular SDK v12
+ * - Paystack bank loading
+ * - Bank account verification
+ * - Real backend withdrawal
  */
 
 // ============================================================================
@@ -18,18 +22,27 @@ import {
     doc,
     updateDoc,
     collection,
-    addDoc,
     query,
     orderBy,
-    onSnapshot,
-    serverTimestamp
+    onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 "use strict";
 
 
 // ============================================================================
-// 2. RUNTIME STATE
+// 2. CONFIGURATION
+// ============================================================================
+
+const API_BASE =
+    "https://fundsiq-api.onrender.com";
+
+const MINIMUM_WITHDRAWAL =
+    2000;
+
+
+// ============================================================================
+// 3. RUNTIME STATE
 // ============================================================================
 
 const State = {
@@ -37,6 +50,18 @@ const State = {
     user: null,
 
     activeTab: "overview",
+
+    banks: [],
+
+    accountVerified: false,
+
+    verifiedAccountName: "",
+
+    verifiedAccountNumber: "",
+
+    verifiedBankCode: "",
+
+    verifiedBankName: "",
 
     marketerData: {
 
@@ -58,23 +83,32 @@ const State = {
 
         accountName: "",
 
-        status: "Inactive"
+        status: "Inactive",
+
+        withdrawalStatus: ""
+
     },
 
     activityLogs: [],
 
     unsubscribes: []
+
 };
 
 
 // ============================================================================
-// 3. TOAST
+// 4. TOAST
 // ============================================================================
 
-function showToast(message, type = "success") {
+function showToast(
+    message,
+    type = "success"
+) {
 
     const container =
-        document.getElementById("toast-container");
+        document.getElementById(
+            "toast-container"
+        );
 
     if (!container) return;
 
@@ -107,7 +141,7 @@ function showToast(message, type = "success") {
 
 
 // ============================================================================
-// 4. ESCAPE HTML
+// 5. ESCAPE HTML
 // ============================================================================
 
 function escapeHTML(value) {
@@ -130,7 +164,92 @@ function escapeHTML(value) {
 
 
 // ============================================================================
-// 5. FIRESTORE DATA SUBSCRIPTION
+// 6. GET FIREBASE ID TOKEN
+// ============================================================================
+
+async function getFirebaseToken() {
+
+    if (!State.user) {
+
+        throw new Error(
+            "You must be logged in."
+        );
+    }
+
+    return await State.user.getIdToken(
+        true
+    );
+}
+
+
+// ============================================================================
+// 7. BACKEND REQUEST HELPER
+// ============================================================================
+
+async function apiRequest(
+    endpoint,
+    options = {}
+) {
+
+    const token =
+        await getFirebaseToken();
+
+    const headers = {
+
+        Authorization:
+            `Bearer ${token}`,
+
+        "Content-Type":
+            "application/json",
+
+        ...(options.headers || {})
+
+    };
+
+
+    const response =
+        await fetch(
+            `${API_BASE}${endpoint}`,
+            {
+                ...options,
+                headers
+            }
+        );
+
+
+    let data = null;
+
+    try {
+
+        data =
+            await response.json();
+
+    } catch (error) {
+
+        data = null;
+
+    }
+
+
+    if (!response.ok) {
+
+        throw new Error(
+
+            data?.msg ||
+            data?.message ||
+            "Request failed."
+
+        );
+
+    }
+
+
+    return data;
+}
+
+
+// ============================================================================
+// 8. FIRESTORE DATA SUBSCRIPTION
 // ============================================================================
 
 function subscribeToMarketerData(user) {
@@ -139,23 +258,27 @@ function subscribeToMarketerData(user) {
     // CLEAN OLD LISTENERS
     // ------------------------------------------------------------------------
 
-    State.unsubscribes.forEach(unsub => {
+    State.unsubscribes.forEach(
+        unsub => {
 
-        try {
+            try {
 
-            unsub();
+                unsub();
 
-        } catch (error) {
+            } catch (error) {
 
-            console.error(
-                "Listener cleanup error:",
-                error
-            );
+                console.error(
+                    "Listener cleanup error:",
+                    error
+                );
+
+            }
+
         }
-
-    });
+    );
 
     State.unsubscribes = [];
+
 
     // ------------------------------------------------------------------------
     // USER PROFILE
@@ -167,6 +290,7 @@ function subscribeToMarketerData(user) {
             "users",
             user.uid
         );
+
 
     toggleSkeleton(true);
 
@@ -180,7 +304,7 @@ function subscribeToMarketerData(user) {
 
             userRef,
 
-            (docSnap) => {
+            docSnap => {
 
                 if (!docSnap.exists()) {
 
@@ -204,8 +328,12 @@ function subscribeToMarketerData(user) {
 
                         accountName: "",
 
-                        status: "Inactive"
+                        status: "Inactive",
+
+                        withdrawalStatus: ""
+
                     };
+
 
                     syncUI();
 
@@ -289,47 +417,42 @@ function subscribeToMarketerData(user) {
                             data.marketerBalance || 0
                         ),
 
-
                     totalEarnings:
                         Number(
                             data.totalEarnings || 0
                         ),
 
-
                     totalReferrals:
                         profileReferralCount,
-
 
                     premiumReferrals:
                         Number(
                             data.premiumReferrals || 0
                         ),
 
-
                     referralCode:
                         referralCode,
-
 
                     referralLink:
                         referralLink,
 
-
                     bankName:
                         data.bankName || "",
-
 
                     accountNumber:
                         data.accountNumber || "",
 
-
                     accountName:
                         data.accountName || "",
-
 
                     status:
                         data.isMarketer
                             ? "Active"
-                            : "Inactive"
+                            : "Inactive",
+
+                    withdrawalStatus:
+                        data.withdrawalStatus || ""
+
                 };
 
 
@@ -337,9 +460,13 @@ function subscribeToMarketerData(user) {
 
                 toggleSkeleton(false);
 
+
+                // Load banks after authentication/profile
+                loadBanksIfNeeded();
+
             },
 
-            (error) => {
+            error => {
 
                 console.error(
                     "User profile subscription error:",
@@ -352,6 +479,7 @@ function subscribeToMarketerData(user) {
                     "Unable to sync your marketer account.",
                     "error"
                 );
+
             }
         );
 
@@ -389,7 +517,7 @@ function subscribeToMarketerData(user) {
 
             qActivity,
 
-            async (snapshot) => {
+            async snapshot => {
 
                 const tempLogs = [];
 
@@ -414,30 +542,12 @@ function subscribeToMarketerData(user) {
                 );
 
 
-                // =============================================================
-                // STORE REFERRAL ACTIVITY
-                // =============================================================
-
                 State.activityLogs =
                     tempLogs;
 
 
                 // =============================================================
-                // IMPORTANT REFERRAL COUNTER FIX
-                // =============================================================
-                //
-                // Every successful referral creates ONE document inside:
-                //
-                // users/{uid}/referrals
-                //
-                // Therefore snapshot.size gives the actual number
-                // of recorded referrals.
-                //
-                // We compare it with totalReferrals stored on the
-                // profile and use whichever is higher.
-                //
-                // This protects older accounts where the profile
-                // counter may still be 0.
+                // REFERRAL COUNTER FIX
                 // =============================================================
 
                 const activityReferralCount =
@@ -462,10 +572,7 @@ function subscribeToMarketerData(user) {
 
 
                 // =============================================================
-                // SYNC CORRECT COUNT BACK TO FIRESTORE
-                // =============================================================
-                //
-                // This permanently repairs the user's totalReferrals field.
+                // REPAIR FIRESTORE COUNTER
                 // =============================================================
 
                 if (
@@ -488,9 +595,7 @@ function subscribeToMarketerData(user) {
                             correctReferralCount
                         );
 
-                    }
-
-                    catch (error) {
+                    } catch (error) {
 
                         console.error(
                             "Could not repair totalReferrals:",
@@ -498,12 +603,9 @@ function subscribeToMarketerData(user) {
                         );
 
                     }
+
                 }
 
-
-                // =============================================================
-                // UPDATE DASHBOARD IMMEDIATELY
-                // =============================================================
 
                 syncUI();
 
@@ -511,28 +613,29 @@ function subscribeToMarketerData(user) {
 
             },
 
-            (error) => {
+            error => {
 
                 console.error(
                     "Referral activity subscription error:",
                     error
                 );
 
-                // Even if activity loading fails,
-                // the profile counter can still display.
                 syncUI();
+
             }
+
         );
 
 
     State.unsubscribes.push(
         unsubActivity
     );
+
 }
 
 
 // ============================================================================
-// 6. SYNCHRONIZE UI
+// 9. SYNCHRONIZE UI
 // ============================================================================
 
 function syncUI() {
@@ -557,6 +660,7 @@ function syncUI() {
             formatCurrency(
                 data.balance
             );
+
     }
 
 
@@ -576,6 +680,7 @@ function syncUI() {
             formatCurrency(
                 data.totalEarnings
             );
+
     }
 
 
@@ -597,6 +702,7 @@ function syncUI() {
                     data.totalReferrals
                 ) || 0
             );
+
     }
 
 
@@ -618,6 +724,7 @@ function syncUI() {
                     data.premiumReferrals
                 ) || 0
             );
+
     }
 
 
@@ -636,6 +743,7 @@ function syncUI() {
         codeDisplay.textContent =
             data.referralCode ||
             "No referral code";
+
     }
 
 
@@ -654,6 +762,7 @@ function syncUI() {
         linkDisplay.textContent =
             data.referralLink ||
             "No referral link";
+
     }
 
 
@@ -673,18 +782,13 @@ function syncUI() {
             formatCurrency(
                 data.balance
             );
+
     }
 
 
     // =========================================================================
     // BANK DETAILS
     // =========================================================================
-
-    const bName =
-        document.getElementById(
-            "draw-bank-name"
-        );
-
 
     const aNum =
         document.getElementById(
@@ -698,17 +802,11 @@ function syncUI() {
         );
 
 
-    if (bName) {
-
-        bName.value =
-            data.bankName || "";
-    }
-
-
     if (aNum) {
 
         aNum.value =
             data.accountNumber || "";
+
     }
 
 
@@ -716,11 +814,54 @@ function syncUI() {
 
         aName.value =
             data.accountName || "";
+
     }
 
 
     // =========================================================================
-    // WITHDRAWAL LIMIT
+    // BANK SELECT
+    // =========================================================================
+
+    const bankField =
+        document.getElementById(
+            "draw-bank-name"
+        );
+
+
+    if (
+        bankField &&
+        bankField.tagName === "SELECT"
+    ) {
+
+        if (data.bankName) {
+
+            const option =
+                Array.from(
+                    bankField.options
+                ).find(
+                    item =>
+                        item.textContent.trim()
+                            .toLowerCase() ===
+                        data.bankName
+                            .trim()
+                            .toLowerCase()
+                );
+
+
+            if (option) {
+
+                bankField.value =
+                    option.value;
+
+            }
+
+        }
+
+    }
+
+
+    // =========================================================================
+    // WITHDRAW BUTTON
     // =========================================================================
 
     const submitBtn =
@@ -735,14 +876,45 @@ function syncUI() {
         );
 
 
-    if (
-        data.balance >= 2000
+    const isProcessing =
+        data.withdrawalStatus ===
+            "Initiating" ||
+        data.withdrawalStatus ===
+            "Processing";
+
+
+    if (isProcessing) {
+
+        if (submitBtn) {
+
+            submitBtn.disabled =
+                true;
+
+        }
+
+
+        if (warningText) {
+
+            warningText.textContent =
+                "Your previous withdrawal is still being processed.";
+
+            warningText.style.color =
+                "var(--danger)";
+
+        }
+
+    }
+
+    else if (
+        data.balance >=
+        MINIMUM_WITHDRAWAL
     ) {
 
         if (submitBtn) {
 
             submitBtn.disabled =
                 false;
+
         }
 
 
@@ -753,6 +925,7 @@ function syncUI() {
 
             warningText.style.color =
                 "var(--green)";
+
         }
 
     }
@@ -763,13 +936,14 @@ function syncUI() {
 
             submitBtn.disabled =
                 true;
+
         }
 
 
         if (warningText) {
 
             const needed =
-                2000 -
+                MINIMUM_WITHDRAWAL -
                 data.balance;
 
 
@@ -778,16 +952,594 @@ function syncUI() {
 
             warningText.style.color =
                 "var(--danger)";
+
         }
+
     }
 
 
     renderActivityLogs();
+
 }
 
 
 // ============================================================================
-// 7. ACTIVITY RENDERER
+// 10. LOAD BANKS
+// ============================================================================
+
+async function loadBanksIfNeeded() {
+
+    if (
+        State.banks.length > 0
+    ) {
+
+        populateBankField();
+
+        return;
+
+    }
+
+
+    try {
+
+        const data =
+            await apiRequest(
+                "/api/withdrawal/banks"
+            );
+
+
+        if (
+            !data ||
+            !Array.isArray(
+                data.banks
+            )
+        ) {
+
+            throw new Error(
+                "Bank list was not returned."
+            );
+
+        }
+
+
+        State.banks =
+            data.banks;
+
+
+        populateBankField();
+
+    } catch (error) {
+
+        console.error(
+            "Bank loading error:",
+            error
+        );
+
+        showToast(
+            "Unable to load Nigerian banks.",
+            "error"
+        );
+
+    }
+
+}
+
+
+// ============================================================================
+// 11. POPULATE BANK FIELD
+// ============================================================================
+
+function populateBankField() {
+
+    const field =
+        document.getElementById(
+            "draw-bank-name"
+        );
+
+
+    if (!field) {
+
+        console.warn(
+            "draw-bank-name field not found."
+        );
+
+        return;
+
+    }
+
+
+    // =========================================================
+    // IF ALREADY A SELECT
+    // =========================================================
+
+    if (
+        field.tagName ===
+        "SELECT"
+    ) {
+
+        fillBankSelect(
+            field
+        );
+
+        return;
+
+    }
+
+
+    // =========================================================
+    // IF OLD HTML USES INPUT
+    // =========================================================
+
+    const select =
+        document.createElement(
+            "select"
+        );
+
+
+    select.id =
+        "draw-bank-name";
+
+
+    select.name =
+        field.name ||
+        "bankName";
+
+
+    select.className =
+        field.className;
+
+
+    select.required =
+        true;
+
+
+    select.innerHTML = `
+
+        <option value="">
+            Select your bank
+        </option>
+
+    `;
+
+
+    State.banks.forEach(
+        bank => {
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                bank.code;
+
+
+            option.textContent =
+                bank.name;
+
+
+            select.appendChild(
+                option
+            );
+
+        }
+    );
+
+
+    field.replaceWith(
+        select
+    );
+
+
+    // Restore previous bank selection
+    if (
+        State.marketerData.bankName
+    ) {
+
+        const matchingBank =
+            State.banks.find(
+                bank =>
+                    bank.name
+                        .toLowerCase() ===
+                    State.marketerData
+                        .bankName
+                        .toLowerCase()
+            );
+
+
+        if (matchingBank) {
+
+            select.value =
+                matchingBank.code;
+
+        }
+
+    }
+
+
+    select.addEventListener(
+        "change",
+        () => {
+
+            resetAccountVerification();
+
+        }
+    );
+
+}
+
+
+// ============================================================================
+// 12. FILL EXISTING SELECT
+// ============================================================================
+
+function fillBankSelect(
+    select
+) {
+
+    const currentValue =
+        select.value;
+
+
+    select.innerHTML = `
+
+        <option value="">
+            Select your bank
+        </option>
+
+    `;
+
+
+    State.banks.forEach(
+        bank => {
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                bank.code;
+
+
+            option.textContent =
+                bank.name;
+
+
+            select.appendChild(
+                option
+            );
+
+        }
+    );
+
+
+    if (
+        currentValue
+    ) {
+
+        select.value =
+            currentValue;
+
+    }
+
+
+    if (
+        State.marketerData.bankName
+    ) {
+
+        const matchingBank =
+            State.banks.find(
+                bank =>
+                    bank.name
+                        .toLowerCase() ===
+                    State.marketerData
+                        .bankName
+                        .toLowerCase()
+            );
+
+
+        if (
+            matchingBank &&
+            !select.value
+        ) {
+
+            select.value =
+                matchingBank.code;
+
+        }
+
+    }
+
+
+    select.addEventListener(
+        "change",
+        resetAccountVerification
+    );
+
+}
+
+
+// ============================================================================
+// 13. RESET ACCOUNT VERIFICATION
+// ============================================================================
+
+function resetAccountVerification() {
+
+    State.accountVerified =
+        false;
+
+    State.verifiedAccountName =
+        "";
+
+    State.verifiedAccountNumber =
+        "";
+
+    State.verifiedBankCode =
+        "";
+
+    State.verifiedBankName =
+        "";
+
+
+    const accountName =
+        document.getElementById(
+            "draw-account-name"
+        );
+
+
+    if (accountName) {
+
+        accountName.value =
+            "";
+
+    }
+
+
+    setAccountVerificationMessage(
+        "",
+        ""
+    );
+
+}
+
+
+// ============================================================================
+// 14. VERIFY BANK ACCOUNT
+// ============================================================================
+
+async function verifyBankAccount() {
+
+    const bankField =
+        document.getElementById(
+            "draw-bank-name"
+        );
+
+
+    const accountField =
+        document.getElementById(
+            "draw-account-number"
+        );
+
+
+    const accountNameField =
+        document.getElementById(
+            "draw-account-name"
+        );
+
+
+    const bankCode =
+        bankField?.value?.trim() ||
+        "";
+
+
+    const accountNumber =
+        accountField?.value?.trim() ||
+        "";
+
+
+    if (!bankCode) {
+
+        throw new Error(
+            "Please select your bank."
+        );
+
+    }
+
+
+    if (
+        !/^\d{10}$/.test(
+            accountNumber
+        )
+    ) {
+
+        throw new Error(
+            "Enter a valid 10-digit account number."
+        );
+
+    }
+
+
+    setAccountVerificationMessage(
+        "Verifying bank account...",
+        "loading"
+    );
+
+
+    const data =
+        await apiRequest(
+            "/api/withdrawal/verify-account",
+            {
+
+                method:
+                    "POST",
+
+                body:
+                    JSON.stringify({
+
+                        accountNumber,
+
+                        bankCode
+
+                    })
+
+            }
+        );
+
+
+    if (
+        !data ||
+        !data.status ||
+        !data.accountName
+    ) {
+
+        throw new Error(
+            "Bank account could not be verified."
+        );
+
+    }
+
+
+    const selectedBank =
+        State.banks.find(
+            bank =>
+                bank.code ===
+                bankCode
+        );
+
+
+    State.accountVerified =
+        true;
+
+    State.verifiedAccountName =
+        data.accountName;
+
+    State.verifiedAccountNumber =
+        data.accountNumber ||
+        accountNumber;
+
+    State.verifiedBankCode =
+        bankCode;
+
+    State.verifiedBankName =
+        selectedBank?.name ||
+        "";
+
+
+    if (accountNameField) {
+
+        accountNameField.value =
+            data.accountName;
+
+    }
+
+
+    setAccountVerificationMessage(
+        `✓ Account verified: ${data.accountName}`,
+        "success"
+    );
+
+
+    return data;
+
+}
+
+
+// ============================================================================
+// 15. ACCOUNT VERIFICATION MESSAGE
+// ============================================================================
+
+function setAccountVerificationMessage(
+    message,
+    type
+) {
+
+    let element =
+        document.getElementById(
+            "fundsiq-account-verification-message"
+        );
+
+
+    const accountField =
+        document.getElementById(
+            "draw-account-name"
+        );
+
+
+    if (!element) {
+
+        element =
+            document.createElement(
+                "div"
+            );
+
+
+        element.id =
+            "fundsiq-account-verification-message";
+
+
+        element.style.marginTop =
+            "8px";
+
+
+        element.style.fontSize =
+            "13px";
+
+
+        element.style.fontWeight =
+            "600";
+
+
+        if (accountField) {
+
+            accountField.parentNode
+                ?.appendChild(
+                    element
+                );
+
+        }
+
+    }
+
+
+    element.textContent =
+        message || "";
+
+
+    if (
+        type ===
+        "success"
+    ) {
+
+        element.style.color =
+            "var(--green, #16a34a)";
+
+    }
+
+    else if (
+        type ===
+        "loading"
+    ) {
+
+        element.style.color =
+            "var(--text-muted, #777)";
+
+    }
+
+    else {
+
+        element.style.color =
+            "var(--danger, #dc2626)";
+
+    }
+
+}
+
+
+// ============================================================================
+// 16. ACTIVITY RENDERER
 // ============================================================================
 
 function renderActivityLogs() {
@@ -886,6 +1638,7 @@ function renderActivityLogs() {
                         timestamp.toLocaleDateString(
                             "en-NG",
                             {
+
                                 year:
                                     "numeric",
 
@@ -894,16 +1647,17 @@ function renderActivityLogs() {
 
                                 day:
                                     "numeric"
+
                             }
                         );
 
-                }
-
-                catch (error) {
+                } catch (error) {
 
                     dateText =
                         "";
+
                 }
+
             }
 
 
@@ -939,14 +1693,17 @@ function renderActivityLogs() {
     listContainer.appendChild(
         fragment
     );
+
 }
 
 
 // ============================================================================
-// 8. CURRENCY
+// 17. CURRENCY
 // ============================================================================
 
-function formatCurrency(num) {
+function formatCurrency(
+    num
+) {
 
     const amount =
         Number(num) || 0;
@@ -956,18 +1713,21 @@ function formatCurrency(num) {
         amount.toLocaleString(
             "en-NG",
             {
+
                 minimumFractionDigits:
                     2,
 
                 maximumFractionDigits:
                     2
+
             }
         );
+
 }
 
 
 // ============================================================================
-// 9. COPY TO CLIPBOARD
+// 18. COPY TO CLIPBOARD
 // ============================================================================
 
 async function copyToClipboard(
@@ -986,6 +1746,7 @@ async function copyToClipboard(
         );
 
         return;
+
     }
 
 
@@ -1038,6 +1799,7 @@ async function copyToClipboard(
 
 
             input.remove();
+
         }
 
 
@@ -1045,9 +1807,7 @@ async function copyToClipboard(
             successMsg
         );
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
         console.error(
             "Clipboard error:",
@@ -1059,12 +1819,14 @@ async function copyToClipboard(
             "Failed to copy. Please select it manually.",
             "error"
         );
+
     }
+
 }
 
 
 // ============================================================================
-// 10. REFERRAL MESSAGE
+// 19. REFERRAL MESSAGE
 // ============================================================================
 
 function buildReferralMessage() {
@@ -1083,6 +1845,7 @@ function buildReferralMessage() {
     ) {
 
         return null;
+
     }
 
 
@@ -1097,12 +1860,14 @@ function buildReferralMessage() {
         `Sign up here:\n${link}\n\n` +
 
         `Join FundsIQ and start practicing today! 🚀`
+
     );
+
 }
 
 
 // ============================================================================
-// 11. WHATSAPP
+// 20. WHATSAPP
 // ============================================================================
 
 function shareToWhatsApp() {
@@ -1119,11 +1884,14 @@ function shareToWhatsApp() {
         );
 
         return;
+
     }
 
 
     const whatsappUrl =
-        `https://wa.me/?text=${encodeURIComponent(message)}`;
+        `https://wa.me/?text=${encodeURIComponent(
+            message
+        )}`;
 
 
     window.open(
@@ -1131,11 +1899,12 @@ function shareToWhatsApp() {
         "_blank",
         "noopener,noreferrer"
     );
+
 }
 
 
 // ============================================================================
-// 12. WHATSAPP BUSINESS
+// 21. WHATSAPP BUSINESS
 // ============================================================================
 
 function shareToWhatsAppBusiness() {
@@ -1152,15 +1921,20 @@ function shareToWhatsAppBusiness() {
         );
 
         return;
+
     }
 
 
     const businessUrl =
-        `whatsapp://send?text=${encodeURIComponent(message)}`;
+        `whatsapp://send?text=${encodeURIComponent(
+            message
+        )}`;
 
 
     const normalUrl =
-        `https://wa.me/?text=${encodeURIComponent(message)}`;
+        `https://wa.me/?text=${encodeURIComponent(
+            message
+        )}`;
 
 
     try {
@@ -1168,34 +1942,38 @@ function shareToWhatsAppBusiness() {
         window.location.href =
             businessUrl;
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
         console.warn(
             "WhatsApp Business deep link failed:",
             error
         );
+
     }
 
 
-    setTimeout(() => {
+    setTimeout(
+        () => {
 
-        if (!document.hidden) {
+            if (!document.hidden) {
 
-            window.open(
-                normalUrl,
-                "_blank",
-                "noopener,noreferrer"
-            );
-        }
+                window.open(
+                    normalUrl,
+                    "_blank",
+                    "noopener,noreferrer"
+                );
 
-    }, 800);
+            }
+
+        },
+        800
+    );
+
 }
 
 
 // ============================================================================
-// 13. UNIVERSAL SHARE
+// 22. UNIVERSAL SHARE
 // ============================================================================
 
 async function shareReferral() {
@@ -1212,6 +1990,7 @@ async function shareReferral() {
         );
 
         return;
+
     }
 
 
@@ -1228,16 +2007,15 @@ async function shareReferral() {
                     message,
 
                 url:
-                    State.marketerData.referralLink
+                    State.marketerData
+                        .referralLink
 
             });
 
 
             return;
 
-        }
-
-        catch (error) {
+        } catch (error) {
 
             if (
                 error.name ===
@@ -1245,6 +2023,7 @@ async function shareReferral() {
             ) {
 
                 return;
+
             }
 
 
@@ -1252,16 +2031,19 @@ async function shareReferral() {
                 "Native share failed:",
                 error
             );
+
         }
+
     }
 
 
     shareToWhatsApp();
+
 }
 
 
 // ============================================================================
-// 14. TAB NAVIGATION
+// 23. TAB NAVIGATION
 // ============================================================================
 
 function initTabNavigation() {
@@ -1313,6 +2095,7 @@ function initTabNavigation() {
                                 view.classList.remove(
                                     "active-view"
                                 );
+
                             }
                         );
 
@@ -1328,6 +2111,7 @@ function initTabNavigation() {
                         targetView.classList.add(
                             "active-view"
                         );
+
                     }
 
                 }
@@ -1335,11 +2119,12 @@ function initTabNavigation() {
 
         }
     );
+
 }
 
 
 // ============================================================================
-// 15. EDIT BANK DETAILS
+// 24. EDIT BANK DETAILS
 // ============================================================================
 
 function triggerEditBankDetails() {
@@ -1353,6 +2138,7 @@ function triggerEditBankDetails() {
     if (withdrawTabBtn) {
 
         withdrawTabBtn.click();
+
     }
 
 
@@ -1365,12 +2151,14 @@ function triggerEditBankDetails() {
     if (firstFormInput) {
 
         firstFormInput.focus();
+
     }
+
 }
 
 
 // ============================================================================
-// 16. GLOBAL FUNCTIONS
+// 25. GLOBAL FUNCTIONS
 // ============================================================================
 
 window.triggerEditBankDetails =
@@ -1387,10 +2175,12 @@ window.shareReferral =
 
 
 // ============================================================================
-// 17. SKELETON
+// 26. SKELETON
 // ============================================================================
 
-function toggleSkeleton(show) {
+function toggleSkeleton(
+    show
+) {
 
     const loader =
         document.getElementById(
@@ -1410,6 +2200,7 @@ function toggleSkeleton(show) {
             show
                 ? "flex"
                 : "none";
+
     }
 
 
@@ -1419,12 +2210,211 @@ function toggleSkeleton(show) {
             show
                 ? "0"
                 : "1";
+
     }
+
 }
 
 
 // ============================================================================
-// 18. DOM BOOTSTRAP
+// 27. REAL PAYSTACK WITHDRAWAL
+// ============================================================================
+
+async function executeRealWithdrawal() {
+
+    if (!State.user) {
+
+        throw new Error(
+            "Please log in to withdraw."
+        );
+
+    }
+
+
+    const balance =
+        Number(
+            State.marketerData.balance
+        ) || 0;
+
+
+    if (
+        balance <
+        MINIMUM_WITHDRAWAL
+    ) {
+
+        throw new Error(
+            `Minimum withdrawal is ${formatCurrency(
+                MINIMUM_WITHDRAWAL
+            )}.`
+        );
+
+    }
+
+
+    const bankField =
+        document.getElementById(
+            "draw-bank-name"
+        );
+
+
+    const accountField =
+        document.getElementById(
+            "draw-account-number"
+        );
+
+
+    const accountNameField =
+        document.getElementById(
+            "draw-account-name"
+        );
+
+
+    const bankCode =
+        bankField?.value?.trim() ||
+        "";
+
+
+    const accountNumber =
+        accountField?.value?.trim() ||
+        "";
+
+
+    if (!bankCode) {
+
+        throw new Error(
+            "Please select your bank."
+        );
+
+    }
+
+
+    if (
+        !/^\d{10}$/.test(
+            accountNumber
+        )
+    ) {
+
+        throw new Error(
+            "Enter a valid 10-digit account number."
+        );
+
+    }
+
+
+    // =========================================================
+    // VERIFY ACCOUNT FIRST
+    // =========================================================
+
+    const verification =
+        await verifyBankAccount();
+
+
+    if (
+        !verification ||
+        !verification.accountName
+    ) {
+
+        throw new Error(
+            "Bank account verification failed."
+        );
+
+    }
+
+
+    // =========================================================
+    // CONFIRM OFFICIAL ACCOUNT NAME
+    // =========================================================
+
+    const officialName =
+        verification.accountName;
+
+
+    if (accountNameField) {
+
+        accountNameField.value =
+            officialName;
+
+    }
+
+
+    const bank =
+        State.banks.find(
+            item =>
+                item.code ===
+                bankCode
+        );
+
+
+    const bankName =
+        bank?.name ||
+        "";
+
+
+    // =========================================================
+    // FINAL CONFIRMATION
+    // =========================================================
+
+    const confirmed =
+        window.confirm(
+
+            `Confirm your withdrawal:\n\n` +
+
+            `Amount: ${formatCurrency(
+                balance
+            )}\n` +
+
+            `Bank: ${bankName}\n` +
+
+            `Account: ${accountNumber}\n` +
+
+            `Account name: ${officialName}\n\n` +
+
+            `Do you want to continue?`
+
+        );
+
+
+    if (!confirmed) {
+
+        return null;
+
+    }
+
+
+    // =========================================================
+    // SEND TO SECURE BACKEND
+    // =========================================================
+
+    const result =
+        await apiRequest(
+            "/api/withdrawal/request",
+            {
+
+                method:
+                    "POST",
+
+                body:
+                    JSON.stringify({
+
+                        accountNumber,
+
+                        bankCode,
+
+                        bankName
+
+                    })
+
+            }
+        );
+
+
+    return result;
+
+}
+
+
+// ============================================================================
+// 28. DOM BOOTSTRAP
 // ============================================================================
 
 document.addEventListener(
@@ -1469,13 +2459,12 @@ document.addEventListener(
 
                                 unsub();
 
-                            }
-
-                            catch (error) {
+                            } catch (error) {
 
                                 console.error(
                                     error
                                 );
+
                             }
 
                         }
@@ -1506,13 +2495,17 @@ document.addEventListener(
 
                         accountName: "",
 
-                        status: "Inactive"
+                        status: "Inactive",
+
+                        withdrawalStatus: ""
+
                     };
 
 
                     toggleSkeleton(false);
 
                     syncUI();
+
                 }
 
             }
@@ -1632,7 +2625,26 @@ document.addEventListener(
                     if (withdrawTab) {
 
                         withdrawTab.click();
+
                     }
+
+                }
+            );
+
+
+        // =====================================================================
+        // ACCOUNT NUMBER CHANGE
+        // =====================================================================
+
+        document
+            .getElementById(
+                "draw-account-number"
+            )
+            ?.addEventListener(
+                "input",
+                () => {
+
+                    resetAccountVerification();
 
                 }
             );
@@ -1665,82 +2677,7 @@ document.addEventListener(
                         );
 
                         return;
-                    }
 
-
-                    const bank =
-                        document
-                            .getElementById(
-                                "draw-bank-name"
-                            )
-                            ?.value
-                            .trim();
-
-
-                    const accountNo =
-                        document
-                            .getElementById(
-                                "draw-account-number"
-                            )
-                            ?.value
-                            .trim();
-
-
-                    const accountName =
-                        document
-                            .getElementById(
-                                "draw-account-name"
-                            )
-                            ?.value
-                            .trim();
-
-
-                    if (
-                        !bank ||
-                        !accountNo ||
-                        !accountName
-                    ) {
-
-                        showToast(
-                            "Please complete all bank details.",
-                            "error"
-                        );
-
-                        return;
-                    }
-
-
-                    if (
-                        !/^\d{10}$/.test(
-                            accountNo
-                        )
-                    ) {
-
-                        showToast(
-                            "Enter a valid 10-digit account number.",
-                            "error"
-                        );
-
-                        return;
-                    }
-
-
-                    const balance =
-                        Number(
-                            State.marketerData.balance
-                        ) || 0;
-
-
-                    if (
-                        balance < 2000
-                    ) {
-
-                        showToast(
-                            "Withdrawal failed. Minimum limit is ₦2,000.",
-                            "error"
-                        );
-
-                        return;
                     }
 
 
@@ -1756,106 +2693,67 @@ document.addEventListener(
                             true;
 
                         submitBtn.innerHTML =
-                            `<span>⏳</span> Processing Payout...`;
+                            `<span>⏳</span> Verifying & Processing...`;
+
                     }
 
 
                     try {
 
-                        const userRef =
-                            doc(
-                                db,
-                                "users",
-                                State.user.uid
+                        const result =
+                            await executeRealWithdrawal();
+
+
+                        if (!result) {
+
+                            return;
+
+                        }
+
+
+                        if (
+                            result.transferStatus ===
+                            "success"
+                        ) {
+
+                            showToast(
+                                `Withdrawal of ${formatCurrency(
+                                    result.amount
+                                )} was sent successfully!`
                             );
 
+                        }
 
-                        const payoutLogsRef =
-                            collection(
-                                db,
-                                "users",
-                                State.user.uid,
-                                "withdrawals"
+                        else {
+
+                            showToast(
+                                `Withdrawal of ${formatCurrency(
+                                    result.amount
+                                )} is being processed.`
                             );
 
-
-                        await addDoc(
-                            payoutLogsRef,
-                            {
-
-                                bankName:
-                                    bank,
-
-                                accountNumber:
-                                    accountNo,
-
-                                accountName:
-                                    accountName,
-
-                                amount:
-                                    balance,
-
-                                status:
-                                    "Processing",
-
-                                requestedAt:
-                                    serverTimestamp()
-
-                            }
-                        );
+                        }
 
 
-                        await updateDoc(
-                            userRef,
-                            {
-
-                                bankName:
-                                    bank,
-
-                                accountNumber:
-                                    accountNo,
-
-                                accountName:
-                                    accountName,
-
-                                marketerBalance:
-                                    0,
-
-                                pendingWithdrawal:
-                                    balance,
-
-                                withdrawalStatus:
-                                    "Processing",
-
-                                lastWithdrawal:
-                                    serverTimestamp()
-
-                            }
-                        );
+                        // Reset local verification state
+                        resetAccountVerification();
 
 
-                        showToast(
-                            "Payout request submitted successfully!"
-                        );
-
-                    }
-
-                    catch (error) {
+                    } catch (error) {
 
                         console.error(
-                            "Withdrawal transaction failed:",
+                            "Real withdrawal failed:",
                             error
                         );
 
 
                         showToast(
-                            "Payment processing failed. Try again.",
+                            error.message ||
+                            "Withdrawal failed. Your balance was not intentionally deducted.",
                             "error"
                         );
 
-                    }
-
-                    finally {
+                    } finally {
 
                         if (submitBtn) {
 
@@ -1864,6 +2762,7 @@ document.addEventListener(
 
                             submitBtn.innerHTML =
                                 "📝 Submit Payout Request";
+
                         }
 
                     }
