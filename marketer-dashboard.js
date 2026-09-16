@@ -360,11 +360,9 @@ function subscribeToMarketerData(user) {
                 // =============================================================
 
                 const referralLink =
-                    referralCode
-
-                        ? `https://funds7.github.io/FundsIQ/signup.html?ref=${encodeURIComponent(referralCode)}`
-
-                        : "";
+    referralCode
+        ? `https://fundsiq.com.ng/signup.html?ref=${encodeURIComponent(referralCode)}`
+        : "";
 
 
                 // =============================================================
