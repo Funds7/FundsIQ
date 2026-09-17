@@ -312,8 +312,14 @@ button, input, select {
 .fundsiq-ad-container {
   width: 100%;
   max-width: 360px;
-  height: 70px;
-  margin: 10px auto 18px;
+  height: 0;
+  margin: 0 auto;
   overflow: hidden;
   text-align: center;
+}
+
+/* Show the ad area only when Google actually fills an ad */
+.fundsiq-ad-container:has(iframe) {
+  height: 70px;
+  margin: 10px auto 18px;
 }
