@@ -305,3 +305,15 @@ button, input, select {
 .level-card:hover {
   transform: translateY(-2px);
 }
+/* ===========================
+   FUNDSIQ ADSENSE AD
+   =========================== */
+
+.fundsiq-ad-container {
+  width: 100%;
+  max-width: 360px;
+  height: 70px;
+  margin: 10px auto 18px;
+  overflow: hidden;
+  text-align: center;
+}
