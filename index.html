@@ -15,11 +15,267 @@
   <link rel="stylesheet" href="dashboard.css">
   <link rel="stylesheet" href="more.css">
   <link rel="stylesheet" href="components.css">
+
+  <style>
+    /* ==========================================
+       COMPACT PROFILE / WELCOME CARD
+       ========================================== */
+
+    .profile-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+
+      padding: 12px 14px;
+      min-height: 82px;
+
+      border-radius: 16px;
+      margin-bottom: 14px;
+    }
+
+    .welcome-section {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .welcome-section h2 {
+      font-size: 1.05rem;
+      line-height: 1.25;
+      margin: 0 0 3px 0;
+    }
+
+    .welcome-subtitle {
+      font-size: 0.72rem;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .coins-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .coins-icon {
+      font-size: 21px;
+    }
+
+    .coins-text {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1.05;
+    }
+
+    .coins-text strong {
+      font-size: 1rem;
+    }
+
+    .coins-text span {
+      font-size: 0.62rem;
+    }
+
+    .chevron {
+      font-size: 1.2rem;
+      margin-left: 1px;
+    }
+
+
+    /* ==========================================
+       NOTIFICATION BUTTON
+       ========================================== */
+
+    .notification-btn {
+      position: relative;
+      cursor: pointer;
+    }
+
+    .notif-badge {
+      position: absolute;
+
+      top: -4px;
+      right: -5px;
+
+      min-width: 17px;
+      height: 17px;
+
+      padding: 0 4px;
+
+      display: none;
+      align-items: center;
+      justify-content: center;
+
+      background: #ef4444;
+      color: white;
+
+      border-radius: 50px;
+
+      font-size: 10px;
+      font-weight: 700;
+
+      border: 2px solid var(--bg-color, #0f172a);
+    }
+
+
+    /* ==========================================
+       NOTIFICATION PANEL
+       ========================================== */
+
+    .notifications-panel {
+      position: absolute;
+
+      top: 65px;
+      right: 12px;
+
+      width: min(340px, calc(100vw - 24px));
+
+      background: #1e293b;
+
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+
+      box-shadow: 0 15px 35px rgba(0,0,0,0.35);
+
+      z-index: 9999;
+
+      overflow: hidden;
+
+      display: none;
+    }
+
+    .notifications-panel.show {
+      display: block;
+    }
+
+    .notifications-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      padding: 13px 15px;
+
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .notifications-header strong {
+      font-size: 0.95rem;
+    }
+
+    .notifications-close {
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+
+      font-size: 20px;
+      cursor: pointer;
+
+      padding: 3px 7px;
+    }
+
+    .notifications-list {
+      max-height: 350px;
+      overflow-y: auto;
+    }
+
+    .notification-item {
+      padding: 12px 15px;
+
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+
+      cursor: pointer;
+
+      transition: background 0.2s ease;
+    }
+
+    .notification-item:hover {
+      background: rgba(255,255,255,0.04);
+    }
+
+    .notification-item.unread {
+      background: rgba(139,92,246,0.08);
+    }
+
+    .notification-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+
+      color: #fff;
+
+      margin-bottom: 3px;
+    }
+
+    .notification-message {
+      font-size: 0.72rem;
+      line-height: 1.35;
+
+      color: #cbd5e1;
+    }
+
+    .notification-time {
+      font-size: 0.62rem;
+
+      color: #64748b;
+
+      margin-top: 5px;
+    }
+
+    .notification-empty {
+      padding: 30px 15px;
+
+      text-align: center;
+
+      color: #94a3b8;
+
+      font-size: 0.78rem;
+    }
+
+
+    /* ==========================================
+       MOBILE PROFILE CARD
+       ========================================== */
+
+    @media (max-width: 480px) {
+
+      .profile-card {
+        padding: 10px 12px;
+        min-height: 74px;
+      }
+
+      .welcome-section h2 {
+        font-size: 0.98rem;
+      }
+
+      .welcome-subtitle {
+        font-size: 0.68rem;
+      }
+
+      .coins-icon {
+        font-size: 18px;
+      }
+
+      .coins-text strong {
+        font-size: 0.92rem;
+      }
+
+      .coins-text span {
+        font-size: 0.58rem;
+      }
+
+      .notifications-panel {
+        top: 60px;
+        right: 8px;
+      }
+    }
+  </style>
+
 </head>
 
 <body>
 
   <div class="dashboard-wrapper">
+
     <div class="container">
 
       <!-- ===========================
@@ -33,6 +289,7 @@
         </button>
 
         <div class="navbar-brand">
+
           <div class="brand-title">
             FundsI<span class="brand-cap">Q</span>
           </div>
@@ -40,6 +297,7 @@
           <p class="brand-sub">
             Master your GST courses.
           </p>
+
         </div>
 
         <div class="navbar-actions">
@@ -56,9 +314,22 @@
             <span class="theme-slider"></span>
           </button>
 
-          <button class="notification-btn">
+          <!-- REAL NOTIFICATION BUTTON -->
+
+          <button
+            class="notification-btn"
+            id="notification-btn"
+            aria-label="Notifications"
+            type="button">
+
             🔔
-            <span class="notif-badge">3</span>
+
+            <span
+              class="notif-badge"
+              id="notif-badge">
+              0
+            </span>
+
           </button>
 
         </div>
@@ -89,8 +360,15 @@
           </div>
 
           <div class="coins-text">
-            <strong id="coinBalance">0</strong>
-            <span>Coins</span>
+
+            <strong id="coinBalance">
+              0
+            </strong>
+
+            <span>
+              Coins
+            </span>
+
           </div>
 
           <span class="chevron">
@@ -125,14 +403,14 @@
           <button
             class="banner-btn"
             onclick="alert('Program starting soon! Stay tuned.')">
+
             Learn more
+
           </button>
 
         </div>
 
         <div class="banner-graphic">
-
-          <!-- Styled 3D Wallet SVG -->
 
           <svg
             class="wallet-svg"
@@ -184,7 +462,9 @@
               fill="#fff"
               font-weight="bold"
               font-size="14">
+
               F
+
             </text>
 
           </svg>
@@ -276,7 +556,7 @@
       <main class="action-grid">
 
 
-        <!-- Portal 1: General Courses -->
+        <!-- General Courses -->
 
         <div
           class="grid-card"
@@ -319,7 +599,7 @@
         </div>
 
 
-        <!-- Portal 2: Simulated CBT -->
+        <!-- Simulated CBT -->
 
         <div
           class="grid-card"
@@ -377,7 +657,7 @@
         </div>
 
 
-        <!-- Portal 3: GPA Calculator -->
+        <!-- GPA Calculator -->
 
         <div
           class="grid-card"
@@ -442,7 +722,7 @@
         </div>
 
 
-        <!-- Portal 4: Leaderboard -->
+        <!-- Leaderboard -->
 
         <div
           class="grid-card"
@@ -497,7 +777,7 @@
         </div>
 
 
-        <!-- Portal 5: Timetable -->
+        <!-- Timetable -->
 
         <div
           class="grid-card"
@@ -562,7 +842,7 @@
         </div>
 
 
-        <!-- Portal 6: My Performance -->
+        <!-- My Performance -->
 
         <div
           class="grid-card"
@@ -601,7 +881,7 @@
         </div>
 
 
-        <!-- MORE CARD -->
+        <!-- More -->
 
         <div
           class="grid-card"
@@ -801,4 +1081,4 @@
   </script>
 
 </body>
-</html>
+  </html>
