@@ -10,1075 +10,1299 @@
   </script>
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FundsIQ - Dashboard</title>
 
-  <link rel="stylesheet" href="dashboard.css">
-  <link rel="stylesheet" href="more.css">
-  <link rel="stylesheet" href="components.css">
+  <title>FundsIQ - Master Your GST Courses</title>
+
+  <meta
+    name="description"
+    content="FundsIQ helps university students study GST courses, practise CBT questions, track academic performance and prepare for examinations."
+  >
 
   <style>
-    /* ==========================================
-       COMPACT PROFILE / WELCOME CARD
-       ========================================== */
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card2: #172033;
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --purple: #8b5cf6;
+      --purple-dark: #6d28d9;
+      --border: rgba(255,255,255,0.08);
+    }
 
-    .profile-card {
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .container {
+      width: min(1100px, calc(100% - 32px));
+      margin: auto;
+    }
+
+    /* NAVBAR */
+
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+
+      background: rgba(15,23,42,0.95);
+      backdrop-filter: blur(12px);
+
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      min-height: 70px;
+
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
 
-      padding: 12px 14px;
-      min-height: 82px;
-
-      border-radius: 16px;
-      margin-bottom: 14px;
+      gap: 20px;
     }
 
-    .welcome-section {
-      flex: 1;
-      min-width: 0;
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 800;
     }
 
-    .welcome-section h2 {
-      font-size: 1.05rem;
-      line-height: 1.25;
-      margin: 0 0 3px 0;
+    .logo span {
+      color: var(--purple);
     }
 
-    .welcome-subtitle {
-      font-size: 0.72rem;
-      line-height: 1.2;
-      margin: 0;
-    }
-
-    .coins-badge {
+    .nav-links {
       display: flex;
       align-items: center;
-      gap: 5px;
-      flex-shrink: 0;
+      gap: 22px;
+
+      color: var(--muted);
+      font-size: 0.9rem;
     }
 
-    .coins-icon {
-      font-size: 21px;
+    .nav-links a:hover {
+      color: white;
     }
 
-    .coins-text {
+    .nav-buttons {
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      line-height: 1.05;
+      gap: 8px;
     }
 
-    .coins-text strong {
-      font-size: 1rem;
-    }
-
-    .coins-text span {
-      font-size: 0.62rem;
-    }
-
-    .chevron {
-      font-size: 1.2rem;
-      margin-left: 1px;
-    }
-
-
-    /* ==========================================
-       NOTIFICATION BUTTON
-       ========================================== */
-
-    .notification-btn {
-      position: relative;
-      cursor: pointer;
-    }
-
-    .notif-badge {
-      position: absolute;
-
-      top: -4px;
-      right: -5px;
-
-      min-width: 17px;
-      height: 17px;
-
-      padding: 0 4px;
-
-      display: none;
+    .btn {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
 
-      background: #ef4444;
+      border: none;
+      border-radius: 10px;
+
+      padding: 10px 16px;
+
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--purple);
       color: white;
+    }
 
-      border-radius: 50px;
+    .btn-primary:hover {
+      background: var(--purple-dark);
+    }
 
-      font-size: 10px;
+    .btn-secondary {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: white;
+    }
+
+    /* HERO */
+
+    .hero {
+      padding: 80px 0 65px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 50px;
+      align-items: center;
+    }
+
+    .hero-badge {
+      display: inline-block;
+
+      background: rgba(139,92,246,0.15);
+      color: #c4b5fd;
+
+      border: 1px solid rgba(139,92,246,0.25);
+
+      border-radius: 30px;
+
+      padding: 6px 12px;
+
+      font-size: 0.75rem;
       font-weight: 700;
 
-      border: 2px solid var(--bg-color, #0f172a);
+      margin-bottom: 18px;
     }
 
+    .hero h1 {
+      font-size: clamp(2.2rem, 6vw, 4rem);
+      line-height: 1.05;
 
-    /* ==========================================
-       NOTIFICATION PANEL
-       ========================================== */
-
-    .notifications-panel {
-      position: absolute;
-
-      top: 65px;
-      right: 12px;
-
-      width: min(340px, calc(100vw - 24px));
-
-      background: #1e293b;
-
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 16px;
-
-      box-shadow: 0 15px 35px rgba(0,0,0,0.35);
-
-      z-index: 9999;
-
-      overflow: hidden;
-
-      display: none;
+      margin-bottom: 20px;
     }
 
-    .notifications-panel.show {
-      display: block;
+    .hero h1 span {
+      color: var(--purple);
     }
 
-    .notifications-header {
+    .hero p {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 650px;
+
+      margin-bottom: 28px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .hero-card {
+      background:
+        linear-gradient(
+          145deg,
+          rgba(139,92,246,0.18),
+          rgba(30,41,59,0.95)
+        );
+
+      border: 1px solid var(--border);
+      border-radius: 24px;
+
+      padding: 30px;
+
+      box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+    }
+
+    .hero-card h3 {
+      margin-bottom: 18px;
+    }
+
+    .feature-preview {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 14px;
 
-      padding: 13px 15px;
+      padding: 14px;
 
-      border-bottom: 1px solid rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.05);
+
+      border-radius: 14px;
+
+      margin-bottom: 10px;
     }
 
-    .notifications-header strong {
-      font-size: 0.95rem;
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+
+      display: grid;
+      place-items: center;
+
+      border-radius: 10px;
+
+      background: rgba(139,92,246,0.2);
     }
 
-    .notifications-close {
-      border: none;
-      background: transparent;
+    .feature-preview strong {
+      display: block;
+      font-size: 0.9rem;
+    }
+
+    .feature-preview small {
       color: #94a3b8;
-
-      font-size: 20px;
-      cursor: pointer;
-
-      padding: 3px 7px;
     }
 
-    .notifications-list {
-      max-height: 350px;
-      overflow-y: auto;
+    /* GENERAL SECTIONS */
+
+    section.public-section {
+      padding: 70px 0;
     }
 
-    .notification-item {
-      padding: 12px 15px;
+    .section-heading {
+      text-align: center;
+      max-width: 700px;
 
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-
-      cursor: pointer;
-
-      transition: background 0.2s ease;
+      margin: 0 auto 40px;
     }
 
-    .notification-item:hover {
-      background: rgba(255,255,255,0.04);
+    .section-heading h2 {
+      font-size: 2rem;
+      margin-bottom: 10px;
     }
 
-    .notification-item.unread {
-      background: rgba(139,92,246,0.08);
+    .section-heading p {
+      color: var(--muted);
     }
 
-    .notification-title {
-      font-size: 0.82rem;
-      font-weight: 700;
+    /* FEATURES */
 
-      color: #fff;
-
-      margin-bottom: 3px;
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
     }
 
-    .notification-message {
-      font-size: 0.72rem;
-      line-height: 1.35;
+    .feature-card {
+      background: var(--card);
 
-      color: #cbd5e1;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+
+      padding: 24px;
     }
 
-    .notification-time {
-      font-size: 0.62rem;
-
-      color: #64748b;
-
-      margin-top: 5px;
+    .feature-card .icon {
+      font-size: 1.8rem;
+      margin-bottom: 12px;
     }
 
-    .notification-empty {
-      padding: 30px 15px;
+    .feature-card h3 {
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    /* COURSES */
+
+    .courses-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .course {
+      background: var(--card);
+
+      border: 1px solid var(--border);
+      border-radius: 14px;
+
+      padding: 18px;
 
       text-align: center;
-
-      color: #94a3b8;
-
-      font-size: 0.78rem;
     }
 
+    .course strong {
+      display: block;
+      color: #c4b5fd;
+      margin-bottom: 5px;
+    }
 
-    /* ==========================================
-       MOBILE PROFILE CARD
-       ========================================== */
+    .course span {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    /* HOW IT WORKS */
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+
+    .step {
+      text-align: center;
+    }
+
+    .step-number {
+      width: 45px;
+      height: 45px;
+
+      margin: 0 auto 12px;
+
+      display: grid;
+      place-items: center;
+
+      background: var(--purple);
+      border-radius: 50%;
+
+      font-weight: 800;
+    }
+
+    .step p {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    /* PREMIUM */
+
+    .premium-box {
+      background:
+        linear-gradient(
+          135deg,
+          #312e81,
+          #581c87
+        );
+
+      border-radius: 22px;
+
+      padding: 35px;
+
+      text-align: center;
+    }
+
+    .premium-box p {
+      color: #ddd6fe;
+      max-width: 650px;
+      margin: 10px auto 22px;
+    }
+
+    /* FAQ */
+
+    .faq {
+      max-width: 800px;
+      margin: auto;
+    }
+
+    details {
+      background: var(--card);
+
+      border: 1px solid var(--border);
+      border-radius: 12px;
+
+      margin-bottom: 10px;
+      padding: 16px 18px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    details p {
+      color: var(--muted);
+      margin-top: 10px;
+      font-size: 0.9rem;
+    }
+
+    /* CTA */
+
+    .cta {
+      text-align: center;
+
+      background: var(--card);
+
+      border: 1px solid var(--border);
+      border-radius: 22px;
+
+      padding: 45px 20px;
+    }
+
+    .cta p {
+      color: var(--muted);
+      margin: 10px auto 22px;
+      max-width: 600px;
+    }
+
+    /* FOOTER */
+
+    footer {
+      border-top: 1px solid var(--border);
+      margin-top: 70px;
+      padding: 35px 0;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 30px;
+    }
+
+    .footer-brand p {
+      color: var(--muted);
+      max-width: 400px;
+      margin-top: 10px;
+      font-size: 0.85rem;
+    }
+
+    .footer-column h4 {
+      margin-bottom: 10px;
+    }
+
+    .footer-column a {
+      display: block;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 7px;
+    }
+
+    .footer-column a:hover {
+      color: white;
+    }
+
+    .copyright {
+      border-top: 1px solid var(--border);
+      margin-top: 30px;
+      padding-top: 20px;
+
+      color: #64748b;
+      font-size: 0.78rem;
+      text-align: center;
+    }
+
+    /* MOBILE */
+
+    @media (max-width: 800px) {
+
+      .nav-links {
+        display: none;
+      }
+
+      .hero {
+        padding: 55px 0 45px;
+      }
+
+      .hero-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .courses-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .steps {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .footer-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
 
     @media (max-width: 480px) {
 
-      .profile-card {
-        padding: 10px 12px;
-        min-height: 74px;
+      .container {
+        width: min(100% - 22px, 1100px);
       }
 
-      .welcome-section h2 {
-        font-size: 0.98rem;
+      .nav-inner {
+        min-height: 62px;
       }
 
-      .welcome-subtitle {
-        font-size: 0.68rem;
+      .logo {
+        font-size: 1.3rem;
       }
 
-      .coins-icon {
-        font-size: 18px;
+      .nav-buttons .btn-secondary {
+        display: none;
       }
 
-      .coins-text strong {
+      .hero h1 {
+        font-size: 2.3rem;
+      }
+
+      .hero p {
         font-size: 0.92rem;
       }
 
-      .coins-text span {
-        font-size: 0.58rem;
+      .hero-card {
+        padding: 20px;
       }
 
-      .notifications-panel {
-        top: 60px;
-        right: 8px;
+      section.public-section {
+        padding: 50px 0;
+      }
+
+      .courses-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .steps {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .footer-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
-
 </head>
 
 <body>
 
-  <div class="dashboard-wrapper">
+  <!-- NAVIGATION -->
 
-    <div class="container">
+  <header class="navbar">
 
-      <!-- ===========================
-      TOP NAVBAR
-      =========================== -->
+    <div class="container nav-inner">
 
-      <nav class="top-navbar">
+      <a href="index.html" class="logo">
+        FundsI<span>Q</span>
+      </a>
 
-        <button class="nav-icon-btn">
-          ☰
-        </button>
-
-        <div class="navbar-brand">
-
-          <div class="brand-title">
-            FundsI<span class="brand-cap">Q</span>
-          </div>
-
-          <p class="brand-sub">
-            Master your GST courses.
-          </p>
-
-        </div>
-
-        <div class="navbar-actions">
-
-          <button
-            class="profile-btn"
-            onclick="location.href='profile.html'">
-            👤
-          </button>
-
-          <button
-            class="theme-toggle"
-            id="theme-toggle">
-            <span class="theme-slider"></span>
-          </button>
-
-          <!-- REAL NOTIFICATION BUTTON -->
-
-          <button
-            class="notification-btn"
-            id="notification-btn"
-            aria-label="Notifications"
-            type="button">
-
-            🔔
-
-            <span
-              class="notif-badge"
-              id="notif-badge">
-              0
-            </span>
-
-          </button>
-
-        </div>
-
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#courses">Courses</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#premium">Premium</a>
+        <a href="#faq">FAQ</a>
       </nav>
 
+      <div class="nav-buttons">
 
-      <!-- ===========================
-      PROFILE SECTION
-      =========================== -->
+        <a href="login.html" class="btn btn-secondary">
+          Login
+        </a>
 
-      <section class="profile-card">
+        <a href="signup.html" class="btn btn-primary">
+          Get Started
+        </a>
 
-        <div class="welcome-section">
+      </div>
 
-          <h2 id="dynamic-greeting"></h2>
+    </div>
 
-          <p class="welcome-subtitle">
-            Keep learning, keep winning.
-          </p>
+  </header>
 
-        </div>
 
-        <div class="coins-badge">
+  <!-- HERO -->
 
-          <div class="coins-icon">
-            🪙
-          </div>
+  <main>
 
-          <div class="coins-text">
+    <section class="hero">
 
-            <strong id="coinBalance">
-              0
-            </strong>
+      <div class="container hero-grid">
 
-            <span>
-              Coins
-            </span>
+        <div>
 
-          </div>
-
-          <span class="chevron">
-            ›
+          <span class="hero-badge">
+            STUDY SMARTER • PREPARE BETTER
           </span>
 
-        </div>
-
-      </section>
-
-
-      <!-- ===========================
-      MARKETING BANNER
-      =========================== -->
-
-      <section class="promo-banner">
-
-        <div class="banner-content">
-
-          <span class="banner-badge">
-            Affiliate Program
-          </span>
-
-          <h2>
-            Make money as an affiliate marketer for FundsIQ
-          </h2>
+          <h1>
+            Master your
+            <span>GST courses.</span>
+          </h1>
 
           <p>
-            Invite friends, earn coins and unlock amazing rewards.
+            FundsIQ is a student learning platform designed to help
+            university students study General Studies courses, practise
+            computer-based tests, monitor their academic performance and
+            prepare more effectively for examinations.
           </p>
 
-          <button
-            class="banner-btn"
-            onclick="alert('Program starting soon! Stay tuned.')">
+          <div class="hero-buttons">
 
-            Learn more
+            <a href="signup.html" class="btn btn-primary">
+              Start Learning
+            </a>
 
-          </button>
-
-        </div>
-
-        <div class="banner-graphic">
-
-          <svg
-            class="wallet-svg"
-            viewBox="0 0 120 120">
-
-            <defs>
-
-              <linearGradient
-                id="walletGrad"
-                x1="0%"
-                y1="0%"
-                x2="100%"
-                y2="100%">
-
-                <stop
-                  offset="0%"
-                  stop-color="#3b82f6" />
-
-                <stop
-                  offset="100%"
-                  stop-color="#1d4ed8" />
-
-              </linearGradient>
-
-            </defs>
-
-            <rect
-              x="15"
-              y="30"
-              width="90"
-              height="70"
-              rx="15"
-              fill="url(#walletGrad)" />
-
-            <path
-              d="M50,30 L100,50 L100,70 L50,50 Z"
-              fill="#1e40af"
-              opacity="0.5" />
-
-            <circle
-              cx="85"
-              cy="65"
-              r="14"
-              fill="#f59e0b" />
-
-            <text
-              x="80"
-              y="70"
-              fill="#fff"
-              font-weight="bold"
-              font-size="14">
-
-              F
-
-            </text>
-
-          </svg>
-
-        </div>
-
-      </section>
-
-
-      <!-- ===========================
-      LEVEL SELECTOR
-      =========================== -->
-
-      <h3 class="section-title">
-        Your Level
-      </h3>
-
-      <div class="level-container">
-
-        <div
-          class="level-card active"
-          id="currentLevel">
-
-          <div class="level-info">
-
-            <h4>
-              100 Level
-            </h4>
-
-            <p>
-              (Year 1)
-            </p>
-
-          </div>
-
-          <div class="level-icon">
-
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#7c3aed"
-              stroke-width="2">
-
-              <path
-                d="M22 10v6M2 10l10-5 10 5-10 5z">
-              </path>
-
-              <path
-                d="M6 12v5c0 2 2.5 3 6 3s6-1 6-3v-5">
-              </path>
-
-            </svg>
+            <a href="#how-it-works" class="btn btn-secondary">
+              Learn How It Works
+            </a>
 
           </div>
 
         </div>
 
-        <div
-          class="level-card add-card"
-          onclick="alert('More levels coming soon!')">
 
-          <div class="level-info">
+        <div class="hero-card">
 
-            <h4>
-              Add level
-            </h4>
+          <h3>
+            Everything you need to practise
+          </h3>
 
+          <div class="feature-preview">
+            <div class="feature-icon">📚</div>
+            <div>
+              <strong>GST Courses</strong>
+              <small>Study your available courses</small>
+            </div>
           </div>
 
-          <div class="level-icon-plus">
-            +
+          <div class="feature-preview">
+            <div class="feature-icon">📝</div>
+            <div>
+              <strong>Simulated CBT</strong>
+              <small>Practise examination questions</small>
+            </div>
+          </div>
+
+          <div class="feature-preview">
+            <div class="feature-icon">📊</div>
+            <div>
+              <strong>Performance Tracking</strong>
+              <small>Monitor your learning progress</small>
+            </div>
+          </div>
+
+          <div class="feature-preview">
+            <div class="feature-icon">🎓</div>
+            <div>
+              <strong>Academic Tools</strong>
+              <small>Useful tools for university students</small>
+            </div>
           </div>
 
         </div>
 
       </div>
 
-
-      <!-- ===========================
-      MAIN ACTION GRID
-      =========================== -->
-
-      <h3 class="section-title">
-        Academic Portals
-      </h3>
-
-      <main class="action-grid">
+    </section>
 
 
-        <!-- General Courses -->
+    <!-- ABOUT -->
 
-        <div
-          class="grid-card"
-          onclick="location.href='courses.html'">
+    <section class="public-section">
 
-          <div class="grid-icon purple">
+      <div class="container">
 
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2">
+        <div class="section-heading">
 
-              <path
-                d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20">
-              </path>
-
-              <path
-                d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z">
-              </path>
-
-            </svg>
-
-          </div>
-
-          <h3>
-            General Courses
-          </h3>
+          <h2>
+            What is FundsIQ?
+          </h2>
 
           <p>
-            Study GST courses and notes.
+            FundsIQ is an online academic platform focused on helping
+            students organise their studies and practise GST courses
+            through accessible digital learning tools.
           </p>
 
-          <div class="arrow-indicator">
-            ➔
-          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- FEATURES -->
+
+    <section
+      class="public-section"
+      id="features">
+
+      <div class="container">
+
+        <div class="section-heading">
+
+          <h2>
+            Study tools built for students
+          </h2>
+
+          <p>
+            FundsIQ combines learning resources, practice tests and
+            academic tools in one platform.
+          </p>
 
         </div>
 
 
-        <!-- Simulated CBT -->
+        <div class="features-grid">
 
-        <div
-          class="grid-card"
-          onclick="startPractice()">
+          <article class="feature-card">
 
-          <div class="grid-icon pink">
+            <div class="icon">📚</div>
 
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2">
+            <h3>
+              GST Learning
+            </h3>
 
-              <rect
-                x="2"
-                y="3"
-                width="20"
-                height="14"
-                rx="2"
-                ry="2">
-              </rect>
+            <p>
+              Access available GST courses and study materials in an
+              organised digital environment.
+            </p>
 
-              <line
-                x1="8"
-                y1="21"
-                x2="16"
-                y2="21">
-              </line>
+          </article>
 
-              <line
-                x1="12"
-                y1="17"
-                x2="12"
-                y2="21">
-              </line>
 
-            </svg>
+          <article class="feature-card">
 
-          </div>
+            <div class="icon">📝</div>
 
-          <h3>
-            Simulated CBT
-          </h3>
+            <h3>
+              CBT Practice
+            </h3>
+
+            <p>
+              Practise computer-based examination questions and become
+              familiar with the CBT format before your examination.
+            </p>
+
+          </article>
+
+
+          <article class="feature-card">
+
+            <div class="icon">📈</div>
+
+            <h3>
+              Performance
+            </h3>
+
+            <p>
+              Review your practice results and monitor your academic
+              progress over time.
+            </p>
+
+          </article>
+
+
+          <article class="feature-card">
+
+            <div class="icon">🧮</div>
+
+            <h3>
+              GPA Calculator
+            </h3>
+
+            <p>
+              Calculate academic performance using a simple GPA and CGPA
+              calculation tool.
+            </p>
+
+          </article>
+
+
+          <article class="feature-card">
+
+            <div class="icon">🏆</div>
+
+            <h3>
+              Leaderboard
+            </h3>
+
+            <p>
+              Compare practice performance with other students using
+              the available leaderboard features.
+            </p>
+
+          </article>
+
+
+          <article class="feature-card">
+
+            <div class="icon">📅</div>
+
+            <h3>
+              Timetable
+            </h3>
+
+            <p>
+              Organise your class schedule and keep important academic
+              activities in one place.
+            </p>
+
+          </article>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- COURSES -->
+
+    <section
+      class="public-section"
+      id="courses">
+
+      <div class="container">
+
+        <div class="section-heading">
+
+          <h2>
+            GST Courses
+          </h2>
 
           <p>
-            Practice real CBT exams.
+            FundsIQ provides a structured environment for studying
+            General Studies courses.
           </p>
-
-          <div class="arrow-indicator">
-            ➔
-          </div>
 
         </div>
 
 
-        <!-- GPA Calculator -->
+        <div class="courses-grid">
 
-        <div
-          class="grid-card"
-          onclick="window.location.href='cgpa.html'">
-
-          <div class="grid-icon green">
-
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2">
-
-              <rect
-                x="4"
-                y="2"
-                width="16"
-                height="20"
-                rx="2"
-                ry="2">
-              </rect>
-
-              <line
-                x1="9"
-                y1="22"
-                x2="15"
-                y2="22">
-              </line>
-
-              <line
-                x1="8"
-                y1="6"
-                x2="16"
-                y2="6">
-              </line>
-
-              <line
-                x1="16"
-                y1="14"
-                x2="16"
-                y2="18">
-              </line>
-
-            </svg>
-
+          <div class="course">
+            <strong>GST101</strong>
+            <span>General Studies</span>
           </div>
 
-          <h3>
-            GPA Calculator
-          </h3>
-
-          <p>
-            Calculate and track your academic performance.
-          </p>
-
-          <div class="arrow-indicator">
-            ➔
+          <div class="course">
+            <strong>GST102</strong>
+            <span>General Studies</span>
           </div>
 
-        </div>
-
-
-        <!-- Leaderboard -->
-
-        <div
-          class="grid-card"
-          onclick="window.location='leaderboard.html'">
-
-          <div class="grid-icon gold">
-
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2">
-
-              <path
-                d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6">
-              </path>
-
-              <path
-                d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18">
-              </path>
-
-              <path
-                d="M4 22h16">
-              </path>
-
-              <path
-                d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34">
-              </path>
-
-              <path
-                d="M12 2a5 5 0 0 0-5 5v3c0 2.2 1.8 4 4 4h2c2.2 0 4-1.8 4-4V7a5 5 0 0 0-5-5z">
-              </path>
-
-            </svg>
-
+          <div class="course">
+            <strong>GST103</strong>
+            <span>General Studies</span>
           </div>
 
-          <h3>
-            Leaderboard
-          </h3>
+          <div class="course">
+            <strong>GST104</strong>
+            <span>General Studies</span>
+          </div>
 
-          <p>
-            See top performers.
-          </p>
+          <div class="course">
+            <strong>GST105</strong>
+            <span>General Studies</span>
+          </div>
 
-          <div class="arrow-indicator">
-            ➔
+          <div class="course">
+            <strong>GST106</strong>
+            <span>General Studies</span>
+          </div>
+
+          <div class="course">
+            <strong>GST107</strong>
+            <span>General Studies</span>
+          </div>
+
+          <div class="course">
+            <strong>GST108</strong>
+            <span>General Studies</span>
+          </div>
+
+          <div class="course">
+            <strong>GST109</strong>
+            <span>General Studies</span>
+          </div>
+
+          <div class="course">
+            <strong>GST110</strong>
+            <span>General Studies</span>
+          </div>
+
+          <div class="course">
+            <strong>GST111</strong>
+            <span>General Studies</span>
+          </div>
+
+          <div class="course">
+            <strong>GST112</strong>
+            <span>General Studies</span>
+          </div>
+
+          <div class="course">
+            <strong>GST113</strong>
+            <span>General Studies</span>
+          </div>
+
+          <div class="course">
+            <strong>GST114</strong>
+            <span>General Studies</span>
           </div>
 
         </div>
 
+      </div>
 
-        <!-- Timetable -->
+    </section>
 
-        <div
-          class="grid-card"
-          onclick="window.location.href='timetable.html'">
 
-          <div class="grid-icon orange">
+    <!-- HOW IT WORKS -->
 
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2">
+    <section
+      class="public-section"
+      id="how-it-works">
 
-              <rect
-                x="3"
-                y="4"
-                width="18"
-                height="18"
-                rx="2"
-                ry="2">
-              </rect>
+      <div class="container">
 
-              <line
-                x1="16"
-                y1="2"
-                x2="16"
-                y2="6">
-              </line>
+        <div class="section-heading">
 
-              <line
-                x1="8"
-                y1="2"
-                x2="8"
-                y2="6">
-              </line>
-
-              <line
-                x1="3"
-                y1="10"
-                x2="21"
-                y2="10">
-              </line>
-
-            </svg>
-
-          </div>
-
-          <h3>
-            Timetable
-          </h3>
+          <h2>
+            How FundsIQ works
+          </h2>
 
           <p>
-            Manage your class schedule.
+            Getting started takes only a few steps.
           </p>
-
-          <div class="arrow-indicator">
-            ➔
-          </div>
 
         </div>
 
 
-        <!-- My Performance -->
+        <div class="steps">
 
-        <div
-          class="grid-card"
-          onclick="window.location.href='performance.html'">
+          <div class="step">
 
-          <div class="grid-icon blue">
+            <div class="step-number">
+              1
+            </div>
 
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2">
+            <h3>
+              Create an account
+            </h3>
 
-              <polyline
-                points="22 12 18 12 15 21 9 3 6 12 2 12">
-              </polyline>
-
-            </svg>
+            <p>
+              Sign up for a FundsIQ student account.
+            </p>
 
           </div>
 
-          <h3>
-            My Performance
-          </h3>
 
-          <p>
-            Track your progress and stats.
-          </p>
+          <div class="step">
 
-          <div class="arrow-indicator">
-            ➔
-          </div>
+            <div class="step-number">
+              2
+            </div>
 
-        </div>
+            <h3>
+              Choose a course
+            </h3>
 
-
-        <!-- More -->
-
-        <div
-          class="grid-card"
-          onclick="location.href='more.html'">
-
-          <div class="grid-icon purple">
-
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2">
-
-              <circle
-                cx="5"
-                cy="12"
-                r="1.5">
-              </circle>
-
-              <circle
-                cx="12"
-                cy="12"
-                r="1.5">
-              </circle>
-
-              <circle
-                cx="19"
-                cy="12"
-                r="1.5">
-              </circle>
-
-            </svg>
+            <p>
+              Select the GST course you want to study.
+            </p>
 
           </div>
 
-          <h3>
-            More
-          </h3>
 
-          <p>
-            See more features.
-          </p>
+          <div class="step">
 
-          <div class="arrow-indicator">
-            ➔
+            <div class="step-number">
+              3
+            </div>
+
+            <h3>
+              Practise
+            </h3>
+
+            <p>
+              Study your materials and practise CBT questions.
+            </p>
+
+          </div>
+
+
+          <div class="step">
+
+            <div class="step-number">
+              4
+            </div>
+
+            <h3>
+              Track progress
+            </h3>
+
+            <p>
+              Review your results and monitor your academic progress.
+            </p>
+
           </div>
 
         </div>
 
-      </main>
+      </div>
+
+    </section>
+
+
+    <!-- PREMIUM -->
+
+    <section
+      class="public-section"
+      id="premium">
+
+      <div class="container">
+
+        <div class="premium-box">
+
+          <h2>
+            FundsIQ Premium
+          </h2>
+
+          <p>
+            Premium provides an enhanced FundsIQ experience with access
+            to premium features and an ad-free study experience.
+          </p>
+
+          <a
+            href="signup.html"
+            class="btn btn-primary">
+
+            Get Started
+
+          </a>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- FAQ -->
+
+    <section
+      class="public-section"
+      id="faq">
+
+      <div class="container">
+
+        <div class="section-heading">
+
+          <h2>
+            Frequently Asked Questions
+          </h2>
+
+          <p>
+            Common questions about FundsIQ.
+          </p>
+
+        </div>
+
+
+        <div class="faq">
+
+          <details>
+
+            <summary>
+              What is FundsIQ?
+            </summary>
+
+            <p>
+              FundsIQ is an online learning platform that helps students
+              study GST courses, practise CBT questions and monitor
+              academic performance.
+            </p>
+
+          </details>
+
+
+          <details>
+
+            <summary>
+              Who can use FundsIQ?
+            </summary>
+
+            <p>
+              FundsIQ is designed primarily for university students who
+              want digital tools for studying and examination practice.
+            </p>
+
+          </details>
+
+
+          <details>
+
+            <summary>
+              What are CBT practice tests?
+            </summary>
+
+            <p>
+              CBT practice tests simulate computer-based examinations,
+              allowing students to practise answering questions in a
+              digital examination environment.
+            </p>
+
+          </details>
+
+
+          <details>
+
+            <summary>
+              Does FundsIQ have a GPA calculator?
+            </summary>
+
+            <p>
+              Yes. FundsIQ includes an academic calculator designed to
+              help students calculate GPA and CGPA.
+            </p>
+
+          </details>
+
+
+          <details>
+
+            <summary>
+              Does FundsIQ have Premium?
+            </summary>
+
+            <p>
+              Yes. FundsIQ offers a Premium option with additional
+              features and an ad-free experience.
+            </p>
+
+          </details>
+
+
+          <details>
+
+            <summary>
+              Is FundsIQ affiliated with my university?
+            </summary>
+
+            <p>
+              FundsIQ is an independent student learning platform unless
+              a specific institutional partnership is clearly stated.
+            </p>
+
+          </details>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- CTA -->
+
+    <section class="public-section">
+
+      <div class="container">
+
+        <div class="cta">
+
+          <h2>
+            Start studying smarter
+          </h2>
+
+          <p>
+            Create your FundsIQ account and explore the available
+            learning and academic tools.
+          </p>
+
+          <a
+            href="signup.html"
+            class="btn btn-primary">
+
+            Create Free Account
+
+          </a>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- FOOTER -->
+
+  <footer>
+
+    <div class="container">
+
+      <div class="footer-grid">
+
+        <div class="footer-brand">
+
+          <strong class="logo">
+            FundsI<span>Q</span>
+          </strong>
+
+          <p>
+            A digital learning platform designed to help university
+            students study GST courses, practise CBT questions and
+            organise their academic progress.
+          </p>
+
+        </div>
+
+
+        <div class="footer-column">
+
+          <h4>
+            Platform
+          </h4>
+
+          <a href="#features">
+            Features
+          </a>
+
+          <a href="#courses">
+            Courses
+          </a>
+
+          <a href="#how-it-works">
+            How It Works
+          </a>
+
+          <a href="#premium">
+            Premium
+          </a>
+
+        </div>
+
+
+        <div class="footer-column">
+
+          <h4>
+            Account
+          </h4>
+
+          <a href="login.html">
+            Login
+          </a>
+
+          <a href="signup.html">
+            Sign Up
+          </a>
+
+          <a href="privacy.html">
+            Privacy Policy
+          </a>
+
+          <a href="terms.html">
+            Terms of Service
+          </a>
+
+          <a href="contact.html">
+            Contact
+          </a>
+
+        </div>
+
+      </div>
+
+
+      <div class="copyright">
+
+        © 2026 FundsIQ. All rights reserved.
+
+      </div>
 
     </div>
-  </div>
 
-
-  <!-- ===========================
-  BOTTOM NAVIGATION
-  =========================== -->
-
-  <nav class="bottom-nav">
-
-    <div
-      class="bottom-nav-item active"
-      onclick="location.href='index.html'">
-
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2">
-
-        <path
-          d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z">
-        </path>
-
-        <polyline
-          points="9 22 9 12 15 12 15 22">
-        </polyline>
-
-      </svg>
-
-      <span>
-        Home
-      </span>
-
-    </div>
-
-
-    <div
-      class="bottom-nav-item"
-      onclick="location.href='courses.html'">
-
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2">
-
-        <path
-          d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z">
-        </path>
-
-        <path
-          d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z">
-        </path>
-
-      </svg>
-
-      <span>
-        Learn
-      </span>
-
-    </div>
-
-
-    <div
-      class="bottom-nav-item"
-      onclick="startPractice()">
-
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2">
-
-        <polyline
-          points="22 12 18 12 15 21 9 3 6 12 2 12">
-        </polyline>
-
-      </svg>
-
-      <span>
-        Practice
-      </span>
-
-    </div>
-
-
-    <div
-      class="bottom-nav-item"
-      onclick="location.href='more.html'">
-
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2">
-
-        <circle
-          cx="5"
-          cy="12"
-          r="1.5">
-        </circle>
-
-        <circle
-          cx="12"
-          cy="12"
-          r="1.5">
-        </circle>
-
-        <circle
-          cx="19"
-          cy="12"
-          r="1.5">
-        </circle>
-
-      </svg>
-
-      <span>
-        More
-      </span>
-
-    </div>
-
-  </nav>
-
-
-  <!-- ===========================
-  FUNDSIQ SCRIPTS
-  =========================== -->
-
-  <script src="coins.js"></script>
-
-  <script
-    type="module"
-    src="dashboard.js">
-  </script>
+  </footer>
 
 </body>
   </html>
