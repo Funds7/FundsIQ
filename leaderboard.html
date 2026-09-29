@@ -4,11 +4,16 @@
 <head>
 
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
 
 <title>FundsIQ Leaderboard</title>
 
 <link rel="stylesheet" href="style.css">
+
 <link rel="stylesheet" href="leaderboard.css">
 
 </head>
@@ -19,30 +24,78 @@
 
 <div class="container">
 
-    <h1>🏆 Leaderboard</h1>
+
+    <h1>
+        🏆 Leaderboard
+    </h1>
+
 
     <p class="subtitle">
         Top Students This Week
     </p>
 
+
     <!-- COURSE FILTER -->
+
     <div class="course-filter">
 
-    <button onclick="loadCourseLeaderboard('overall', this)">🌍 Overall</button>
-<button onclick="loadCourseLeaderboard('gst101', this)">GST 101</button>
-<button onclick="loadCourseLeaderboard('gst102', this)">GST 102</button>
-<button onclick="loadCourseLeaderboard('gst103', this)">GST 103</button>
-<button onclick="loadCourseLeaderboard('gst111', this)">GST 111</button>
-<button onclick="loadCourseLeaderboard('gst112', this)">GST 112</button>
-<button onclick="loadCourseLeaderboard('gst113', this)">GST 113</button>
-<button onclick="loadCourseLeaderboard('gst114', this)">GST 114</button>
-  </div>
+        <button
+            onclick="loadCourseLeaderboard('overall', this)"
+        >
+            Overall
+        </button>
+
+        <button
+            onclick="loadCourseLeaderboard('gst101', this)"
+        >
+            GST 101
+        </button>
+
+        <button
+            onclick="loadCourseLeaderboard('gst102', this)"
+        >
+            GST 102
+        </button>
+
+        <button
+            onclick="loadCourseLeaderboard('gst103', this)"
+        >
+            GST 103
+        </button>
+
+        <button
+            onclick="loadCourseLeaderboard('gst111', this)"
+        >
+            GST 111
+        </button>
+
+        <button
+            onclick="loadCourseLeaderboard('gst112', this)"
+        >
+            GST 112
+        </button>
+
+        <button
+            onclick="loadCourseLeaderboard('gst113', this)"
+        >
+            GST 113
+        </button>
+
+        <button
+            onclick="loadCourseLeaderboard('gst114', this)"
+        >
+            GST 114
+        </button>
+
+    </div>
 
 
-    <!-- PREMIUM TOP 3 PODIUM -->
+    <!-- TOP THREE -->
 
     <div id="top-three">
 
+
+        <!-- SECOND -->
 
         <div class="podium second">
 
@@ -51,21 +104,24 @@
             </div>
 
             <div class="position">
-                2nd
+                2
             </div>
 
             <h3 id="second-name">
                 Loading...
             </h3>
 
-            <div class="score" id="second-score">
-                ⭐ 0 Points
+            <div
+                class="score"
+                id="second-score"
+            >
+                0 Points
             </div>
 
         </div>
 
 
-
+        <!-- FIRST -->
 
         <div class="podium first">
 
@@ -78,21 +134,24 @@
             </div>
 
             <div class="position">
-                1st
+                1
             </div>
 
             <h2 id="first-name">
                 Loading...
             </h2>
 
-            <div class="score" id="first-score">
-                ⭐ 0 Points
+            <div
+                class="score"
+                id="first-score"
+            >
+                0 Points
             </div>
 
         </div>
 
 
-
+        <!-- THIRD -->
 
         <div class="podium third">
 
@@ -101,15 +160,18 @@
             </div>
 
             <div class="position">
-                3rd
+                3
             </div>
 
             <h3 id="third-name">
                 Loading...
             </h3>
 
-            <div class="score" id="third-score">
-                ⭐ 0 Points
+            <div
+                class="score"
+                id="third-score"
+            >
+                0 Points
             </div>
 
         </div>
@@ -118,45 +180,50 @@
     </div>
 
 
-
-
-
-    <!-- ACTIVATE LEADERBOARD CARD -->
+    <!-- PREMIUM ACCESS -->
 
     <div class="activate-box">
 
 
-        <h2>
-            🏆 Activate Leaderboard
-        </h2>
+        <div class="activate-content">
+
+            <div class="activate-icon">
+                🔒
+            </div>
+
+            <div>
+
+                <h2>
+                    Premium Required
+                </h2>
+
+                <p>
+                    Purchase Premium to see your
+                    exact ranking and access the
+                    full leaderboard.
+                </p>
+
+            </div>
+
+        </div>
 
 
-        <p>
-            See your full ranking position and compete with other students.
-        </p>
-
-
-
-        <button onclick="activateLeaderboard()">
-
-            🚀 Activate Leaderboard
-
+        <button
+            class="premium-button"
+            onclick="premiumUnlock()"
+        >
+            💎 Get Premium
         </button>
 
 
     </div>
 
 
-
-
-
-
     <!-- RANKINGS -->
 
     <h2 class="ranking-title">
-        🏅 Rankings
+        Rankings
     </h2>
-
 
 
     <div id="leaderboard-list">
@@ -166,17 +233,19 @@
     </div>
 
 
-
 </div>
 
 
+<script
+    type="module"
+    src="coin.js"
+></script>
 
 
-
-<script type="module" src="coin.js"></script>
-
-<script type="module" src="leaderboard.js"></script>
-
+<script
+    type="module"
+    src="leaderboard.js"
+></script>
 
 
 </body>
