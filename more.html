@@ -1,400 +1,183 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>FundsIQ - More</title>
 
-  <link
-    rel="stylesheet"
-    href="more.css"
-  >
-
-  <link
-    rel="stylesheet"
-    href="components.css"
-  >
-
+  <link rel="stylesheet" href="more.css">
+  <link rel="stylesheet" href="components.css">
 </head>
 
-
 <body>
-
 <div class="dashboard-wrapper">
-
   <div class="container">
 
-    <h2 class="section-title">
-      More Features
-    </h2>
-
+    <h2 class="section-title">More Features</h2>
 
     <main class="action-grid">
 
-
       <!-- Become a Marketer -->
-
       <div
         class="grid-card"
         onclick="window.location.href='marketer.html'"
       >
-
         <div class="grid-icon neon-gold">
-
-          <svg
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-
-            <path
-              d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"
-            ></path>
-
-            <path
-              d="M19 10v2a7 7 0 0 1-14 0v-2"
-            ></path>
-
-            <line
-              x1="12"
-              y1="19"
-              x2="12"
-              y2="22"
-            ></line>
-
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
           </svg>
-
         </div>
-
-        <h3>
-          Become a Marketer
-        </h3>
-
-        <p>
-          Earn by referring your friends.
-        </p>
-
+        <h3>Become a Marketer</h3>
+        <p>Earn by referring your friends.</p>
       </div>
 
-
       <!-- Marketer Dashboard -->
-
       <div
         class="grid-card"
         onclick="window.location.href='marketer-dashboard.html'"
       >
-
         <div class="grid-icon neon-blue">
-
-          <svg
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-
-            <rect
-              x="3"
-              y="3"
-              width="7"
-              height="9"
-            ></rect>
-
-            <rect
-              x="14"
-              y="3"
-              width="7"
-              height="5"
-            ></rect>
-
-            <rect
-              x="14"
-              y="12"
-              width="7"
-              height="9"
-            ></rect>
-
-            <rect
-              x="3"
-              y="16"
-              width="7"
-              height="5"
-            ></rect>
-
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="9"></rect>
+            <rect x="14" y="3" width="7" height="5"></rect>
+            <rect x="14" y="12" width="7" height="9"></rect>
+            <rect x="3" y="16" width="7" height="5"></rect>
           </svg>
-
         </div>
-
-        <h3>
-          Marketer Dashboard
-        </h3>
-
-        <p>
-          Track referrals, earnings and withdrawals.
-        </p>
-
+        <h3>Marketer Dashboard</h3>
+        <p>Track referrals, earnings and withdrawals.</p>
       </div>
 
     </main>
 
-
     <!-- Referral Banner -->
-
     <section class="referral-banner">
-
       <div class="ref-content">
-
-        <h3>
-          Earn PSA Coins by Referring Friends
-        </h3>
-
-        <button
-          class="ref-btn"
-          type="button"
-        >
+        <h3>Earn PSA Coins by Referring Friends</h3>
+        <button class="ref-btn" type="button"
+          onclick="window.location.href='marketer.html'">
           Learn More
         </button>
-
       </div>
-
     </section>
 
-
     <!-- Micro Cards -->
-
     <div class="micro-grid">
 
-
       <!-- Top Referrals -->
-
-      <div class="micro-card">
-
+      <div
+        class="micro-card"
+        id="top-referrals-btn"
+        role="button"
+        tabindex="0"
+        aria-label="Open Top Referrals"
+      >
         <div class="micro-text">
-
-          <h5>
-            Top Referrals
-          </h5>
-
-          <p>
-            See top referrers.
-          </p>
-
+          <h5>Top Referrals</h5>
+          <p>See top referrers.</p>
         </div>
-
       </div>
-
 
       <!-- My Referrals -->
-
-      <div class="micro-card">
-
+      <div
+        class="micro-card"
+        id="my-referrals-btn"
+        role="button"
+        tabindex="0"
+        aria-label="Open My Referrals"
+      >
         <div class="micro-text">
-
-          <h5>
-            My Referrals
-          </h5>
-
-          <p>
-            Track your referrals.
-          </p>
-
+          <h5>My Referrals</h5>
+          <p>Track your referrals.</p>
         </div>
-
       </div>
 
-
       <!-- Share FundsIQ -->
-
       <div
         class="micro-card"
         id="share-app-btn"
+        role="button"
+        tabindex="0"
+        aria-label="Share FundsIQ"
       >
-
         <div class="micro-text">
-
-          <h5>
-            Share FundsIQ
-          </h5>
-
-          <p>
-            Invite friends to study.
-          </p>
-
+          <h5>Share FundsIQ</h5>
+          <p>Invite friends to study.</p>
         </div>
-
       </div>
 
-
       <!-- Bookmarks -->
-
-      <div class="micro-card">
-
+      <div
+        class="micro-card"
+        id="bookmarks-btn"
+        role="button"
+        tabindex="0"
+        aria-label="Open Bookmarks"
+      >
         <div class="micro-text">
-
-          <h5>
-            Bookmarks
-          </h5>
-
-          <p>
-            View saved notes.
-          </p>
-
+          <h5>Bookmarks</h5>
+          <p>View saved notes.</p>
         </div>
-
       </div>
 
     </div>
 
-
-    <!-- ======================================
-         PREMIUM
-         ====================================== -->
-
+    <!-- Premium -->
     <section class="premium-card">
-
-
       <div class="premium-header">
-
         <div class="premium-badge">
-
           Go Premium
           <span>PRO</span>
-
         </div>
-
       </div>
 
-
-      <!-- Premium Status -->
-
-      <div
-        id="premiumStatus"
-        class="premium-status"
-      >
+      <div id="premiumStatus" class="premium-status">
         Checking Premium status...
       </div>
 
+      <p>Unlock more features and remove ads.</p>
 
-      <p>
-        Unlock more features and remove ads.
-      </p>
-
-
-      <!-- Premium Upgrade Button -->
-
-      <button
-        class="upgrade-btn"
-        id="upgradeBtn"
-        type="button"
-      >
-
+      <button class="upgrade-btn" id="upgradeBtn" type="button">
         👑 Upgrade Now
-
       </button>
-
-
     </section>
 
-
     <!-- Footer -->
-
     <footer class="footer">
-
-      <p>
-        FundsIQ v1.0
-      </p>
-
-      <p>
-
-        Designed by
-        <strong>
-          Odigwe Joshua ✓
-        </strong>
-
-      </p>
-
+      <p>FundsIQ v1.0</p>
+      <p>Designed by <strong>Odigwe Joshua ✓</strong></p>
     </footer>
 
   </div>
-
 </div>
 
-
 <!-- Bottom Navigation -->
-
 <nav class="bottom-nav">
-
-
-  <div
-    class="bottom-nav-item"
-    onclick="location.href='index.html'"
-  >
-
-    <span>
-      Home
-    </span>
-
+  <div class="bottom-nav-item" onclick="location.href='index.html'">
+    <span>Home</span>
   </div>
 
-
-  <div
-    class="bottom-nav-item"
-    onclick="location.href='courses.html'"
-  >
-
-    <span>
-      Learn
-    </span>
-
+  <div class="bottom-nav-item" onclick="location.href='courses.html'">
+    <span>Learn</span>
   </div>
 
-
-  <div
-    class="bottom-nav-item"
-    onclick="location.href='exam.html'"
-  >
-
-    <span>
-      Practice
-    </span>
-
+  <div class="bottom-nav-item" onclick="location.href='exam.html'">
+    <span>Practice</span>
   </div>
-
 
   <div class="bottom-nav-item active">
-
-    <span>
-      More
-    </span>
-
+    <span>More</span>
   </div>
-
 </nav>
 
 <!-- Premium Active Modal -->
-
-<div
-  id="premiumModal"
-  class="premium-modal"
-  aria-hidden="true"
->
-
-  <div
-    id="premiumModalOverlay"
-    class="premium-modal-overlay"
-  ></div>
+<div id="premiumModal" class="premium-modal" aria-hidden="true">
+  <div id="premiumModalOverlay" class="premium-modal-overlay"></div>
 
   <div
     class="premium-modal-box"
@@ -402,27 +185,17 @@
     aria-modal="true"
     aria-labelledby="premiumModalTitle"
   >
-
     <button
       id="premiumModalClose"
       class="premium-modal-close"
       type="button"
       aria-label="Close"
-    >
-      ×
-    </button>
+    >×</button>
 
-    <div class="premium-modal-icon">
-      💎
-    </div>
+    <div class="premium-modal-icon">💎</div>
+    <div class="premium-modal-label">PREMIUM</div>
 
-    <div class="premium-modal-label">
-      PREMIUM
-    </div>
-
-    <h2 id="premiumModalTitle">
-      Premium is Active
-    </h2>
+    <h2 id="premiumModalTitle">Premium is Active</h2>
 
     <p>
       Your FundsIQ Premium account is already active.
@@ -430,40 +203,17 @@
     </p>
 
     <div class="premium-benefits">
-
-      <div>
-        ✓ Premium features unlocked
-      </div>
-
-      <div>
-        ✓ Ad-free experience
-      </div>
-
-      <div>
-        ✓ Full CBT access
-      </div>
-
+      <div>✓ Premium features unlocked</div>
+      <div>✓ Ad-free experience</div>
+      <div>✓ Full CBT access</div>
     </div>
 
-    <button
-      id="premiumModalOk"
-      class="premium-modal-ok"
-      type="button"
-    >
+    <button id="premiumModalOk" class="premium-modal-ok" type="button">
       Awesome, thanks!
     </button>
-
   </div>
-
 </div>
-<!-- More JavaScript -->
 
-<script
-  type="module"
-  src="more.js"
-></script>
-
-
+<script type="module" src="more.js"></script>
 </body>
-
 </html>
