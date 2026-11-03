@@ -1,72 +1,70 @@
-const CACHE_NAME = "fundsiq-pwa-v1";
+const CACHE_NAME = "fundsiq-offline-v2";
 
-const APP_FILES = [
+const FILES_TO_CACHE = [
   "./manifest.json",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./courses.html",
+  "./chapters-gst101.html",
+  "./learn.html",
+  "./content.js",
+  "./gst101.js",
+  "./style.css"
 ];
 
-// Install service worker
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(APP_FILES);
-    })
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
 
-  self.skipWaiting();
+    // Cache files individually so one missing file won't break installation.
+    for (const file of FILES_TO_CACHE) {
+      try {
+        await cache.add(file);
+      } catch (error) {
+        console.warn("Could not cache:", file, error);
+      }
+    }
+
+    await self.skipWaiting();
+  })());
 });
 
-// Activate service worker
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name.startsWith("fundsiq-pwa-") && name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    })
-  );
+  event.waitUntil((async () => {
+    const cacheNames = await caches.keys();
 
-  self.clients.claim();
+    await Promise.all(
+      cacheNames
+        .filter((name) => name.startsWith("fundsiq-offline-") && name !== CACHE_NAME)
+        .map((name) => caches.delete(name))
+    );
+
+    await self.clients.claim();
+  })());
 });
 
-// Handle requests
 self.addEventListener("fetch", (event) => {
   const request = event.request;
 
-  // Only handle GET requests
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
 
-  // Never intercept external requests or API requests
+  // Never cache Firebase, payment, or other external requests.
   if (url.origin !== self.location.origin) return;
 
-  // Only cache app icons and manifest
-  const isAppFile =
-    url.pathname.endsWith("/manifest.json") ||
-    url.pathname.endsWith("/icons/icon-192.png") ||
-    url.pathname.endsWith("/icons/icon-512.png");
+  const isSelectedFile = FILES_TO_CACHE.some((file) => {
+    const fileUrl = new URL(file, self.location.href);
+    return fileUrl.href === url.href;
+  });
 
-  if (!isAppFile) return;
+  if (!isSelectedFile) return;
 
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) return cachedResponse;
+  event.respondWith((async () => {
+    const cachedResponse = await caches.match(request);
 
-      return fetch(request).then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
+    if (cachedResponse) return cachedResponse;
 
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, copy);
-          });
-        }
-
-        return response;
-      });
-    })
-  );
+    return fetch(request);
+  })());
 });
