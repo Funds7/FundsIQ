@@ -47,10 +47,203 @@ const chapter =
 
 const chapterKey = "chapter" + chapter;
 
+// Bookmark storage key
+const bookmarkKey = "fundsiq_bookmarks";
+
 console.log("Course:", course);
 console.log("Chapter:", chapter);
 console.log("Key:", chapterKey);
 
+
+// Get saved bookmarks
+function getBookmarks() {
+
+    try {
+
+        return JSON.parse(
+            localStorage.getItem(bookmarkKey) || "[]"
+        );
+
+    } catch (error) {
+
+        return [];
+
+    }
+
+}
+
+
+// Save bookmarks
+function saveBookmarks(bookmarks) {
+
+    localStorage.setItem(
+        bookmarkKey,
+        JSON.stringify(bookmarks)
+    );
+
+}
+
+
+// Check if a point is bookmarked
+function isBookmarked(pointId) {
+
+    return getBookmarks().some(
+        bookmark => bookmark.id === pointId
+    );
+
+}
+
+
+// Toggle bookmark
+function toggleBookmark(pointId, button) {
+
+    let bookmarks = getBookmarks();
+
+    const existingIndex = bookmarks.findIndex(
+        bookmark => bookmark.id === pointId
+    );
+
+    if (existingIndex !== -1) {
+
+        // Remove bookmark
+        bookmarks.splice(existingIndex, 1);
+
+        button.innerHTML = "🔖 Bookmark";
+
+        alert("Bookmark removed.");
+
+    } else {
+
+        // Save bookmark
+        bookmarks.push({
+            id: pointId,
+            course: course,
+            chapter: chapter,
+            point: pointId.split("-").pop(),
+            content: document.getElementById(
+                "point-" + pointId
+            ).innerText,
+            savedAt: new Date().toISOString()
+        });
+
+        button.innerHTML = "✅ Bookmarked";
+
+        alert("Point bookmarked successfully!");
+
+    }
+
+    saveBookmarks(bookmarks);
+
+}
+
+
+// Share individual point
+async function sharePoint(pointId) {
+
+    const point = document.getElementById(
+        "point-" + pointId
+    );
+
+    if (!point) return;
+
+    const pointNumber = pointId.split("-").pop();
+
+    const shareText =
+        "FundsIQ - " + course.toUpperCase() +
+        ", Chapter " + chapter +
+        "\n\nPoint " + pointNumber +
+        "\n\n" + point.innerText +
+        "\n\nLearn • Practice • Pass";
+
+
+    // Use phone's native share menu
+    if (navigator.share) {
+
+        try {
+
+            await navigator.share({
+                title: "FundsIQ Study Notes",
+                text: shareText
+            });
+
+        } catch (error) {
+
+            console.log("Share cancelled.");
+
+        }
+
+    } else {
+
+        // Fallback: Copy to clipboard
+        try {
+
+            await navigator.clipboard.writeText(shareText);
+
+            alert("Point copied! You can now share it.");
+
+        } catch (error) {
+
+            alert(
+                "Your browser does not support sharing. " +
+                "Please copy the point manually."
+            );
+
+        }
+
+    }
+
+}
+
+
+// Report a point
+function reportPoint(pointId) {
+
+    const point = document.getElementById(
+        "point-" + pointId
+    );
+
+    if (!point) return;
+
+    const pointNumber = pointId.split("-").pop();
+
+    const reason = prompt(
+        "Why are you reporting this point?\n\n" +
+        "Example: Incorrect information, spelling error, " +
+        "or missing explanation."
+    );
+
+    if (!reason || !reason.trim()) {
+
+        return;
+
+    }
+
+    const subject =
+        "FundsIQ Note Report - " +
+        course.toUpperCase() +
+        " Chapter " + chapter +
+        " Point " + pointNumber;
+
+    const body =
+        "Course: " + course.toUpperCase() +
+        "\nChapter: " + chapter +
+        "\nPoint: " + pointNumber +
+        "\n\nReported Note:\n" + point.innerText +
+        "\n\nReason for Report:\n" + reason;
+
+
+    // Opens the student's email application
+    const email =
+        "mailto:fundsiq@gmail.com" +
+        "?subject=" + encodeURIComponent(subject) +
+        "&body=" + encodeURIComponent(body);
+
+    window.location.href = email;
+
+}
+
+
+// Load notes
 if (
     typeof CONTENT !== "undefined" &&
     CONTENT[course] &&
@@ -63,6 +256,11 @@ if (
 
     notes.forEach((point, index) => {
 
+        const pointId =
+            course + "-" + chapter + "-" + (index + 1);
+
+        const bookmarked = isBookmarked(pointId);
+
         html += `
 
 <div class="course-card">
@@ -71,22 +269,37 @@ if (
         Point ${index + 1}
     </div>
 
-    <div class="point-body">
+    <div class="point-body" id="point-${pointId}">
         ${point}
     </div>
 
     <div class="card-buttons">
 
-        <button class="small-btn">
-            🔖 Bookmark
+        <button
+            class="small-btn"
+            onclick="toggleBookmark(
+                '${pointId}',
+                this
+            )">
+
+            ${bookmarked ? "✅ Bookmarked" : "🔖 Bookmark"}
+
         </button>
 
-        <button class="small-btn">
+        <button
+            class="small-btn"
+            onclick="sharePoint('${pointId}')">
+
             📤 Share
+
         </button>
 
-        <button class="small-btn">
+        <button
+            class="small-btn"
+            onclick="reportPoint('${pointId}')">
+
             🚩 Report
+
         </button>
 
     </div>
@@ -112,17 +325,18 @@ if (
 
 <div class="course-card">
 
-<h2>Content Not Found</h2>
+    <h2>Content Not Found</h2>
 
-<p><b>Course:</b> ${course}</p>
+    <p><b>Course:</b> ${course}</p>
 
-<p><b>Chapter:</b> ${chapter}</p>
+    <p><b>Chapter:</b> ${chapter}</p>
 
-<p><b>Key:</b> ${chapterKey}</p>
+    <p><b>Key:</b> ${chapterKey}</p>
 
-<p>
-This chapter could not be found inside <b>content.js</b>.
-</p>
+    <p>
+        This chapter could not be found inside
+        <b>content.js</b>.
+    </p>
 
 </div>
 
@@ -130,10 +344,13 @@ This chapter could not be found inside <b>content.js</b>.
 
 }
 
-function startTest(){
+
+// Start chapter test
+function startTest() {
 
     window.location.href =
-    `exam.html?course=${course}&chapter=${chapter}`;
+        `exam.html?course=${encodeURIComponent(course)}` +
+        `&chapter=${encodeURIComponent(chapter)}`;
 
 }
 
