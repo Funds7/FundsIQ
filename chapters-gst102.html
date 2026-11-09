@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>GST 102 Chapters</title>
+    <title>GST 102 Chapters - FundsIQ</title>
 
     <link rel="stylesheet" href="style.css">
 </head>
@@ -20,77 +20,154 @@
         <p>📚 Choose a chapter to begin learning.</p>
     </div>
 
-    <div id="chapterList"></div>
+    <div id="chapterList">
+        <p>Loading chapters...</p>
+    </div>
 
 </div>
-
-<script src="gst102.js"></script>
 
 <script>
 
-let html = "";
+document.addEventListener("DOMContentLoaded", function () {
 
-gst102Chapters.forEach(chapter => {
+    try {
 
-html += `
+        const gst102Chapters = [
+            {
+                id: 1,
+                title: "General Introduction to Philosophy"
+            },
+            {
+                id: 2,
+                title: "Periods in the History of Western Philosophy"
+            },
+            {
+                id: 3,
+                title: "The Problems of Philosophy"
+            },
+            {
+                id: 4,
+                title: "Ethics and Some of its Attendant Contemporary Issues"
+            },
+            {
+                id: 5,
+                title: "Introduction to Africa Philosophy"
+            },
+            {
+                id: 6,
+                title: "Philosophy and National Development"
+            },
+            {
+                id: 7,
+                title: "Philosophy, Democracy and Human Rights"
+            },
+            {
+                id: 8,
+                title: "Definition and Scope of Logic"
+            },
+            {
+                id: 9,
+                title: "General Natures of Fallacies"
+            },
+            {
+                id: 10,
+                title: "Categorical Propositions and Inferences"
+            }
+        ];
 
-<div class="course-card">
+        const chapterList = document.getElementById("chapterList");
 
-    <div class="point-title">
-        Chapter ${chapter.id}
-    </div>
+        let html = "";
 
-    <div class="point-body">
-        ${chapter.title}
-    </div>
+        gst102Chapters.forEach(function (chapter) {
 
-    <div class="card-buttons">
+            html += `
+                <div class="course-card">
 
-        <button class="small-btn"
-        onclick="openChapter(${chapter.id})">
-        📖 Learn
-        </button>
+                    <div class="point-title">
+                        Chapter ${chapter.id}
+                    </div>
 
-    </div>
+                    <div class="point-body">
+                        ${chapter.title}
+                    </div>
 
-</div>
+                    <div class="card-buttons">
 
-`;
+                        <button
+                            class="small-btn"
+                            data-chapter="${chapter.id}">
+                            📖 Learn
+                        </button>
+
+                    </div>
+
+                </div>
+            `;
+
+        });
+
+        html += `
+            <div class="course-card">
+
+                <div class="test-card">
+
+                    <h2>🏆 GST 102 Final Test</h2>
+
+                    <p>
+                        You've completed the learning phase.
+                        Test your knowledge and see your final score.
+                    </p>
+
+                    <button
+                        class="test-btn"
+                        id="startFinalTest">
+                        📝 Start Final CBT Exam
+                    </button>
+
+                </div>
+
+            </div>
+        `;
+
+        chapterList.innerHTML = html;
+
+        document.querySelectorAll("[data-chapter]").forEach(function (button) {
+
+            button.addEventListener("click", function () {
+
+                const chapterId = this.getAttribute("data-chapter");
+
+                localStorage.setItem("course", "gst102");
+                localStorage.setItem("chapter", chapterId);
+
+                window.location.href = "learn.html";
+
+            });
+
+        });
+
+        document.getElementById("startFinalTest")
+            .addEventListener("click", function () {
+
+                window.location.href = "exam.html?course=gst102";
+
+            });
+
+    } catch (error) {
+
+        document.getElementById("chapterList").innerHTML = `
+            <div class="course-card">
+                <h2>Unable to load GST 102</h2>
+                <p>Please try again.</p>
+            </div>
+        `;
+
+        console.error("GST 102 Error:", error);
+
+    }
 
 });
-
-html += `
-
-<div class="course-card">
-
-    <div class="test-card">
-
-    <h2>🏆 GST 102 Final Test</h2>
-
-    <p>
-        You've completed the learning phase.
-        Test your knowledge and see your final score.
-    </p>
-
-    <button class="test-btn"
-    onclick="location.href='exam.html?course=gst102'">
-        📝 Start Final CBT Exam
-    </button>
-
-</div>
-
-`;
-
-document.getElementById("chapterList").innerHTML = html;
-
-function openChapter(id){
-
-    localStorage.setItem("course","gst102");
-    localStorage.setItem("chapter",id);
-
-    window.location.href="learn.html";
-
-}
 
 </script>
 
