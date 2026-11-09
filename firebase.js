@@ -1,6 +1,11 @@
 // Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
+import {
+  initializeAuth,
+  browserLocalPersistence
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 // Firebase Configuration
@@ -17,6 +22,12 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Export services
-export const auth = getAuth(app);
+// Initialize Authentication with persistent login
+export const auth = initializeAuth(app, {
+  persistence: browserLocalPersistence
+});
+
+// Initialize Firestore
 export const db = getFirestore(app);
+
+console.log("FundsIQ Firebase initialized successfully");
