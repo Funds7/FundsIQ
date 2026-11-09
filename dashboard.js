@@ -17,13 +17,9 @@ import {
 
 console.log("Dashboard.js connected");
 
-/**
- * FundsIQ Dashboard
- * Developed by Odigwe Joshua
- */
 
 // ==========================================
-// GLOBAL NOTIFICATION STATE
+// GLOBAL STATE
 // ==========================================
 
 let notificationUnsubscribe = null;
@@ -41,23 +37,72 @@ function getGreeting() {
         return "🌅 Good morning";
     }
 
-    else if (hour >= 12 && hour < 17) {
+    if (hour >= 12 && hour < 17) {
         return "☀️ Good afternoon";
     }
 
-    else if (hour >= 17 && hour < 21) {
+    if (hour >= 17 && hour < 21) {
         return "🌇 Good evening";
     }
 
-    else {
-        return "🌙 Good night";
+    return "🌙 Good night";
+}
+
+
+// ==========================================
+// DISPLAY USER PROFILE
+// ==========================================
+
+function displayUserProfile(data, uid) {
+
+    const greeting =
+        document.getElementById("dynamic-greeting");
+
+    const coin =
+        document.getElementById("coinBalance");
+
+    const safeName = data.name || "Student";
+
+    if (greeting) {
+
+        greeting.textContent =
+            `${getGreeting()}, ${safeName} 👋`;
+
+    }
+
+    if (coin) {
+
+        coin.textContent =
+            data.coins ?? 20;
+
+    }
+
+    // Save the latest available profile locally
+
+    try {
+
+        localStorage.setItem(
+            `fundsiq_profile_${uid}`,
+            JSON.stringify({
+                name: safeName,
+                coins: data.coins ?? 20
+            })
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Could not save profile locally:",
+            error
+        );
+
     }
 
 }
 
 
 // ==========================================
-// LOAD USER FROM FIREBASE
+// LOAD USER
 // ==========================================
 
 function loadUser() {
@@ -65,81 +110,85 @@ function loadUser() {
     onAuthStateChanged(auth, async (user) => {
 
         if (!user) {
-            window.location.href = "login.html";
+
+            if (notificationUnsubscribe) {
+                notificationUnsubscribe();
+                notificationUnsubscribe = null;
+            }
+
+            window.location.replace("login.html");
             return;
+
         }
+
+        const uid = user.uid;
+
+        // Load locally saved profile immediately
 
         try {
 
-            const userRef = doc(db, "users", user.uid);
+            const savedProfile =
+                localStorage.getItem(
+                    `fundsiq_profile_${uid}`
+                );
 
-            const userSnap = await getDoc(userRef);
+            if (savedProfile) {
 
-            if (userSnap.exists()) {
-
-                const data = userSnap.data();
-
-                // ==================================
-                // GREETING
-                // ==================================
-
-                const greeting =
-                    document.getElementById("dynamic-greeting");
-
-                if (greeting) {
-
-                    const safeName =
-                        data.name || "Student";
-
-                    greeting.innerHTML = `
-                        ${getGreeting()},
-                        <span style="color:#8b5cf6;">
-                            ${safeName}
-                        </span> 👋
-                    `;
-
-                }
-
-
-                // ==================================
-                // COINS
-                // ==================================
-
-                const coin =
-                    document.getElementById("coinBalance");
-
-                if (coin) {
-
-                    coin.innerText =
-                        data.coins ?? 20;
-
-                }
-
-
-                // ==================================
-                // START NOTIFICATIONS
-                // ==================================
-
-                setupNotifications(user.uid);
+                displayUserProfile(
+                    JSON.parse(savedProfile),
+                    uid
+                );
 
             }
 
-            else {
+        } catch (error) {
 
-                console.warn("User profile not found.");
-
-            }
-
-        }
-
-        catch (error) {
-
-            console.error(
-                "Error loading user:",
+            console.warn(
+                "Local profile unavailable:",
                 error
             );
 
         }
+
+
+        // Retrieve the latest available Firestore profile
+
+        try {
+
+            const userRef =
+                doc(db, "users", uid);
+
+            const userSnap =
+                await getDoc(userRef);
+
+            if (userSnap.exists()) {
+
+                displayUserProfile(
+                    userSnap.data(),
+                    uid
+                );
+
+            } else {
+
+                console.warn(
+                    "User profile not found."
+                );
+
+            }
+
+        } catch (error) {
+
+            console.warn(
+                "Using available offline profile:",
+                error
+            );
+
+        }
+
+
+        // Start notifications independently
+
+        setupNotifications(uid);
 
     });
 
@@ -152,26 +201,24 @@ function loadUser() {
 
 function createNotificationPanel() {
 
-    if (document.getElementById("notifications-panel")) {
+    if (
+        document.getElementById("notifications-panel")
+    ) {
         return;
     }
 
     const panel =
         document.createElement("div");
 
-    panel.id =
-        "notifications-panel";
+    panel.id = "notifications-panel";
 
-    panel.className =
-        "notifications-panel";
+    panel.className = "notifications-panel";
 
     panel.innerHTML = `
 
         <div class="notifications-header">
 
-            <strong>
-                Notifications
-            </strong>
+            <strong>Notifications</strong>
 
             <button
                 type="button"
@@ -199,54 +246,36 @@ function createNotificationPanel() {
     document.body.appendChild(panel);
 
 
-    // Close button
-
     const closeBtn =
-        document.getElementById(
-            "notifications-close"
-        );
+        document.getElementById("notifications-close");
 
     if (closeBtn) {
 
-        closeBtn.addEventListener(
-            "click",
-            () => {
+        closeBtn.addEventListener("click", () => {
 
-                panel.classList.remove(
-                    "show"
-                );
+            panel.classList.remove("show");
 
-            }
-        );
+        });
 
     }
 
 
-    // Close when tapping outside
+    document.addEventListener("click", (event) => {
 
-    document.addEventListener(
-        "click",
-        (event) => {
+        const notificationBtn =
+            document.getElementById("notification-btn");
 
-            const notificationBtn =
-                document.getElementById(
-                    "notification-btn"
-                );
+        if (
+            panel.classList.contains("show") &&
+            !panel.contains(event.target) &&
+            !notificationBtn?.contains(event.target)
+        ) {
 
-            if (
-                panel.classList.contains("show") &&
-                !panel.contains(event.target) &&
-                !notificationBtn?.contains(event.target)
-            ) {
-
-                panel.classList.remove(
-                    "show"
-                );
-
-            }
+            panel.classList.remove("show");
 
         }
-    );
+
+    });
 
 }
 
@@ -268,43 +297,32 @@ function formatNotificationTime(timestamp) {
                 ? timestamp.toDate()
                 : new Date(timestamp);
 
-        const now =
-            new Date();
-
         const difference =
-            now - date;
+            new Date() - date;
 
         const seconds =
-            Math.floor(
-                difference / 1000
-            );
+            Math.floor(difference / 1000);
 
         if (seconds < 60) {
             return "Just now";
         }
 
         const minutes =
-            Math.floor(
-                seconds / 60
-            );
+            Math.floor(seconds / 60);
 
         if (minutes < 60) {
             return `${minutes}m ago`;
         }
 
         const hours =
-            Math.floor(
-                minutes / 60
-            );
+            Math.floor(minutes / 60);
 
         if (hours < 24) {
             return `${hours}h ago`;
         }
 
         const days =
-            Math.floor(
-                hours / 24
-            );
+            Math.floor(hours / 24);
 
         if (days < 7) {
             return `${days}d ago`;
@@ -312,152 +330,11 @@ function formatNotificationTime(timestamp) {
 
         return date.toLocaleDateString();
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
         return "";
 
     }
-
-}
-
-
-// ==========================================
-// DISPLAY NOTIFICATIONS
-// ==========================================
-
-function displayNotifications(
-    notifications
-) {
-
-    const list =
-        document.getElementById(
-            "notifications-list"
-        );
-
-    if (!list) {
-        return;
-    }
-
-
-    if (!notifications.length) {
-
-        list.innerHTML = `
-            <div class="notification-empty">
-                🔔<br>
-                No notifications yet.
-            </div>
-        `;
-
-        return;
-
-    }
-
-
-    list.innerHTML = "";
-
-
-    notifications.forEach(
-        (notification) => {
-
-            const item =
-                document.createElement("div");
-
-            item.className =
-                "notification-item" +
-                (
-                    notification.read
-                        ? ""
-                        : " unread"
-                );
-
-
-            const title =
-                notification.title ||
-                "FundsIQ Notification";
-
-            const message =
-                notification.message ||
-                "";
-
-
-            item.innerHTML = `
-
-                <div class="notification-title">
-                    ${escapeHTML(title)}
-                </div>
-
-                <div class="notification-message">
-                    ${escapeHTML(message)}
-                </div>
-
-                <div class="notification-time">
-                    ${formatNotificationTime(
-                        notification.createdAt
-                    )}
-                </div>
-
-            `;
-
-
-            // Mark notification as read
-
-            item.addEventListener(
-                "click",
-                async () => {
-
-                    if (!notification.read) {
-
-                        try {
-
-                            await updateDoc(
-                                doc(
-                                    db,
-                                    "users",
-                                    notification.uid,
-                                    "notifications",
-                                    notification.id
-                                ),
-                                {
-                                    read: true
-                                }
-                            );
-
-                        }
-
-                        catch (error) {
-
-                            console.error(
-                                "Could not mark notification as read:",
-                                error
-                            );
-
-                        }
-
-                    }
-
-
-                    // Optional notification link
-
-                    if (
-                        notification.link &&
-                        typeof notification.link === "string"
-                    ) {
-
-                        window.location.href =
-                            notification.link;
-
-                    }
-
-                }
-            );
-
-
-            list.appendChild(item);
-
-        }
-    );
 
 }
 
@@ -480,42 +357,137 @@ function escapeHTML(value) {
 
 
 // ==========================================
-// SET NOTIFICATION BADGE
+// DISPLAY NOTIFICATIONS
 // ==========================================
 
-function updateNotificationBadge(
-    unreadCount
-) {
+function displayNotifications(notifications) {
+
+    const list =
+        document.getElementById("notifications-list");
+
+    if (!list) {
+        return;
+    }
+
+    if (!notifications.length) {
+
+        list.innerHTML = `
+            <div class="notification-empty">
+                🔔<br>
+                No notifications yet.
+            </div>
+        `;
+
+        return;
+
+    }
+
+    list.innerHTML = "";
+
+    notifications.forEach((notification) => {
+
+        const item =
+            document.createElement("div");
+
+        item.className =
+            "notification-item" +
+            (notification.read ? "" : " unread");
+
+        item.innerHTML = `
+
+            <div class="notification-title">
+                ${escapeHTML(notification.title)}
+            </div>
+
+            <div class="notification-message">
+                ${escapeHTML(notification.message)}
+            </div>
+
+            <div class="notification-time">
+                ${formatNotificationTime(
+                    notification.createdAt
+                )}
+            </div>
+
+        `;
+
+
+        item.addEventListener("click", async () => {
+
+            if (!notification.read) {
+
+                try {
+
+                    await updateDoc(
+                        doc(
+                            db,
+                            "users",
+                            notification.uid,
+                            "notifications",
+                            notification.id
+                        ),
+                        {
+                            read: true
+                        }
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "Could not mark notification as read:",
+                        error
+                    );
+
+                }
+
+            }
+
+            if (
+                notification.link &&
+                typeof notification.link === "string"
+            ) {
+
+                window.location.href =
+                    notification.link;
+
+            }
+
+        });
+
+        list.appendChild(item);
+
+    });
+
+}
+
+
+// ==========================================
+// NOTIFICATION BADGE
+// ==========================================
+
+function updateNotificationBadge(unreadCount) {
 
     const badge =
-        document.getElementById(
-            "notif-badge"
-        );
+        document.getElementById("notif-badge");
 
     if (!badge) {
         return;
     }
 
-
     if (unreadCount > 0) {
 
-        badge.style.display =
-            "flex";
+        badge.style.display = "flex";
 
         badge.textContent =
             unreadCount > 99
                 ? "99+"
                 : unreadCount;
 
-    }
+    } else {
 
-    else {
+        badge.style.display = "none";
 
-        badge.style.display =
-            "none";
-
-        badge.textContent =
-            "0";
+        badge.textContent = "0";
 
     }
 
@@ -530,61 +502,40 @@ function setupNotifications(uid) {
 
     createNotificationPanel();
 
-
     const button =
-        document.getElementById(
-            "notification-btn"
-        );
+        document.getElementById("notification-btn");
 
     const panel =
-        document.getElementById(
-            "notifications-panel"
-        );
-
+        document.getElementById("notifications-panel");
 
     if (!button || !panel) {
         return;
     }
 
 
-    // Prevent duplicate listener
-
     if (!button.dataset.ready) {
 
-        button.dataset.ready =
-            "true";
+        button.dataset.ready = "true";
 
-        button.addEventListener(
-            "click",
-            (event) => {
+        button.addEventListener("click", (event) => {
 
-                event.stopPropagation();
+            event.stopPropagation();
 
-                panel.classList.toggle(
-                    "show"
-                );
+            panel.classList.toggle("show");
 
-            }
-        );
+        });
 
     }
 
-
-    // Remove previous Firestore listener
 
     if (notificationUnsubscribe) {
 
         notificationUnsubscribe();
 
-        notificationUnsubscribe =
-            null;
+        notificationUnsubscribe = null;
 
     }
 
-
-    // ==================================
-    // FIRESTORE NOTIFICATION QUERY
-    // ==================================
 
     const notificationsRef =
         collection(
@@ -594,14 +545,10 @@ function setupNotifications(uid) {
             "notifications"
         );
 
-
     const notificationsQuery =
         query(
             notificationsRef,
-            orderBy(
-                "createdAt",
-                "desc"
-            ),
+            orderBy("createdAt", "desc"),
             limit(30)
         );
 
@@ -616,69 +563,46 @@ function setupNotifications(uid) {
 
                 let unreadCount = 0;
 
+                snapshot.forEach((notificationDoc) => {
 
-                snapshot.forEach(
-                    (notificationDoc) => {
+                    const data =
+                        notificationDoc.data();
 
-                        const data =
-                            notificationDoc.data();
+                    const notification = {
 
+                        id: notificationDoc.id,
 
-                        const notification = {
+                        uid: uid,
 
-                            id:
-                                notificationDoc.id,
+                        title:
+                            data.title ||
+                            "FundsIQ Notification",
 
-                            uid:
-                                uid,
+                        message:
+                            data.message || "",
 
-                            title:
-                                data.title ||
-                                "FundsIQ Notification",
+                        read:
+                            data.read === true,
 
-                            message:
-                                data.message ||
-                                "",
+                        createdAt:
+                            data.createdAt || null,
 
-                            read:
-                                data.read === true,
+                        link:
+                            data.link || null
 
-                            createdAt:
-                                data.createdAt ||
-                                null,
+                    };
 
-                            link:
-                                data.link ||
-                                null
+                    notifications.push(notification);
 
-                        };
-
-
-                        notifications.push(
-                            notification
-                        );
-
-
-                        if (
-                            !notification.read
-                        ) {
-
-                            unreadCount++;
-
-                        }
-
+                    if (!notification.read) {
+                        unreadCount++;
                     }
-                );
 
+                });
 
-                updateNotificationBadge(
-                    unreadCount
-                );
+                updateNotificationBadge(unreadCount);
 
-
-                displayNotifications(
-                    notifications
-                );
+                displayNotifications(notifications);
 
             },
 
@@ -689,9 +613,7 @@ function setupNotifications(uid) {
                     error
                 );
 
-                updateNotificationBadge(
-                    0
-                );
+                // Don't erase previously displayed cached data.
 
             }
         );
@@ -706,57 +628,45 @@ function setupNotifications(uid) {
 function setupShare() {
 
     const shareBtn =
-        document.getElementById(
-            "share-app-btn"
-        );
+        document.getElementById("share-app-btn");
 
     if (!shareBtn) {
         return;
     }
 
+    shareBtn.addEventListener("click", async () => {
 
-    shareBtn.addEventListener(
-        "click",
-        async () => {
+        if (navigator.share) {
 
-            if (navigator.share) {
+            try {
 
-                try {
+                await navigator.share({
 
-                    await navigator.share({
+                    title: "FundsIQ CBT",
 
-                        title:
-                            "FundsIQ CBT",
+                    text:
+                        "Study GST courses smarter with FundsIQ",
 
-                        text:
-                            "Study GST courses smarter with FundsIQ",
+                    url: window.location.origin
 
-                        url:
-                            window.location.origin
+                });
 
-                    });
+            } catch (error) {
 
-                }
-
-                catch (error) {
-
-                    console.log(error);
-
-                }
+                console.log(error);
 
             }
 
-            else {
+        } else {
 
-                alert(
-                    "FundsIQ link: " +
-                    window.location.origin
-                );
-
-            }
+            alert(
+                "FundsIQ link: " +
+                window.location.origin
+            );
 
         }
-    );
+
+    });
 
 }
 
@@ -778,12 +688,7 @@ function setupStorage() {
 
         }
 
-
-        if (
-            !localStorage.getItem(
-                "selectedCourse"
-            )
-        ) {
+        if (!localStorage.getItem("selectedCourse")) {
 
             localStorage.setItem(
                 "selectedCourse",
@@ -792,9 +697,7 @@ function setupStorage() {
 
         }
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
         console.warn(error);
 
@@ -804,18 +707,15 @@ function setupStorage() {
 
 
 // ==========================================
-// START APP
+// START DASHBOARD
 // ==========================================
 
-document.addEventListener(
-    "DOMContentLoaded",
-    () => {
+document.addEventListener("DOMContentLoaded", () => {
 
-        loadUser();
+    loadUser();
 
-        setupShare();
+    setupShare();
 
-        setupStorage();
+    setupStorage();
 
-    }
-);
+});
