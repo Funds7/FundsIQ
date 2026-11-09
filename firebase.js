@@ -1,33 +1,76 @@
-// Firebase SDK
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+// ==========================================
+// FUNDSIQ FIREBASE CONFIGURATION
+// ==========================================
 
 import {
-  initializeAuth,
-  browserLocalPersistence
+    initializeApp
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+
+
+import {
+    initializeAuth,
+    browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-import { getFirestore } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
-// Firebase Configuration
+import {
+    initializeFirestore,
+    persistentLocalCache
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+
+
+// ==========================================
+// FIREBASE CONFIGURATION
+// ==========================================
+
 const firebaseConfig = {
-  apiKey: "AIzaSyCDdEVyEk_99psr5D5fFhsipQ0SjsgUov4",
-  authDomain: "fundsiq.firebaseapp.com",
-  projectId: "fundsiq",
-  storageBucket: "fundsiq.firebasestorage.app",
-  messagingSenderId: "778280805278",
-  appId: "1:778280805278:web:7ab7dd6ce68370e33aac8f",
-  measurementId: "G-9QMVJX15TQ"
+
+    apiKey: "AIzaSyCDdEVyEk_99psr5D5fFhsipQ0SjsgUov4",
+
+    authDomain: "fundsiq.firebaseapp.com",
+
+    projectId: "fundsiq",
+
+    storageBucket: "fundsiq.firebasestorage.app",
+
+    messagingSenderId: "778280805278",
+
+    appId: "1:778280805278:web:7ab7dd6ce68370e33aac8f",
+
+    measurementId: "G-9QMVJX15TQ"
+
 };
 
-// Initialize Firebase
+
+// ==========================================
+// INITIALIZE FIREBASE
+// ==========================================
+
 const app = initializeApp(firebaseConfig);
 
-// Initialize Authentication with persistent login
+
+// ==========================================
+// PERSISTENT AUTHENTICATION
+// ==========================================
+
 export const auth = initializeAuth(app, {
-  persistence: browserLocalPersistence
+
+    persistence: browserLocalPersistence
+
 });
 
-// Initialize Firestore
-export const db = getFirestore(app);
 
-console.log("FundsIQ Firebase initialized successfully");
+// ==========================================
+// FIRESTORE OFFLINE PERSISTENCE
+// ==========================================
+
+export const db = initializeFirestore(app, {
+
+    localCache: persistentLocalCache()
+
+});
+
+
+console.log(
+    "FundsIQ initialized with persistent login and offline database caching."
+);
