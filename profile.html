@@ -1,33 +1,106 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-<title>FundsIQ Profile</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>FundsIQ - My Profile</title>
+
+  <link rel="stylesheet" href="style.css">
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #0f172a;
+      color: #ffffff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 30px 16px;
+      box-sizing: border-box;
+    }
+
+    .profile-container {
+      width: 100%;
+      max-width: 420px;
+      background: #1e293b;
+      padding: 28px 22px;
+      border-radius: 20px;
+      box-sizing: border-box;
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .profile-container h1 {
+      font-size: 25px;
+      margin-bottom: 30px;
+    }
+
+    .profile-container h2 {
+      font-size: 22px;
+      margin-bottom: 10px;
+      overflow-wrap: anywhere;
+    }
+
+    .profile-container p {
+      color: #94a3b8;
+      font-size: 15px;
+      overflow-wrap: anywhere;
+      margin: 15px 0;
+    }
+
+    #logoutBtn {
+      width: 100%;
+      min-height: 52px;
+      margin-top: 25px;
+      padding: 14px 20px;
+
+      background: #ef4444;
+      color: #ffffff;
+
+      border: none;
+      border-radius: 12px;
+
+      font-size: 16px;
+      font-weight: 700;
+
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    #logoutBtn:active {
+      transform: scale(0.98);
+      opacity: 0.9;
+    }
+
+  </style>
 </head>
 
 <body>
 
-<div class="profile-container">
+  <div class="profile-container">
 
-<h1>🎓 My Profile</h1>
+    <h1>🎓 My Profile</h1>
 
-<h2 id="profileName">Loading...</h2>
+    <h2 id="profileName">Loading...</h2>
 
-<p id="profileEmail"></p>
+    <p id="profileEmail"></p>
 
-<p>
-Coins:
-<span id="profileCoins">0</span>
-</p>
+    <p>
+      Coins:
+      <strong id="profileCoins">0</strong>
+    </p>
 
-<button id="logoutBtn">
-Logout
-</button>
+    <button id="logoutBtn" type="button">
+      Logout
+    </button>
 
-</div>
+  </div>
 
-
-<script type="module" src="profile.js"></script>
+  <script type="module" src="profile.js"></script>
 
 </body>
 </html>
