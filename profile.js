@@ -1,95 +1,94 @@
 import { auth, db } from "./firebase.js";
 
-
 import {
-onAuthStateChanged,
-signOut
+  onAuthStateChanged,
+  signOut
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-
 import {
-doc,
-getDoc
+  doc,
+  getDoc
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 
+// PROFILE ELEMENTS
 
-onAuthStateChanged(auth, async(user)=>{
-
-
-if(user){
-
-
-const userSnap = await getDoc(
-doc(db,"users",user.uid)
-);
+const profileName = document.getElementById("profileName");
+const profileEmail = document.getElementById("profileEmail");
+const profileCoins = document.getElementById("profileCoins");
+const logoutBtn = document.getElementById("logoutBtn");
 
 
+// AUTHENTICATION CHECK
 
-if(userSnap.exists()){
+onAuthStateChanged(auth, async (user) => {
 
+  if (!user) {
+    window.location.replace("login.html");
+    return;
+  }
 
-const data = userSnap.data();
+  try {
 
+    profileName.textContent = "Loading...";
+    profileEmail.textContent = "";
+    profileCoins.textContent = "0";
 
+    const userRef = doc(db, "users", user.uid);
 
-document.getElementById("profileName").innerHTML =
-data.name;
+    const userSnap = await getDoc(userRef);
 
+    if (userSnap.exists()) {
 
-document.getElementById("profileEmail").innerHTML =
-data.email;
+      const data = userSnap.data();
 
+      profileName.textContent = data.name || "FundsIQ Student";
 
-document.getElementById("profileCoins").innerHTML =
-data.coins;
+      profileEmail.textContent = data.email || user.email || "";
 
+      profileCoins.textContent = data.coins ?? 0;
 
+    } else {
 
-}
+      profileName.textContent = "Profile not found";
+      profileEmail.textContent = user.email || "";
 
+    }
 
-}
+  } catch (error) {
 
-else{
+    console.error("Profile loading error:", error);
 
-window.location.href="login.html";
+    profileName.textContent = "Unable to load profile";
+    profileEmail.textContent = "Please check your internet connection.";
 
-}
-
-
+  }
 
 });
 
 
+// LOGOUT FUNCTION
 
+logoutBtn.addEventListener("click", async () => {
 
-// LOGOUT
+  try {
 
-document.getElementById("logoutBtn")
-.addEventListener("click", async()=>{
+    logoutBtn.disabled = true;
+    logoutBtn.textContent = "Logging out...";
 
+    await signOut(auth);
 
-try{
+    window.location.replace("login.html");
 
+  } catch (error) {
 
-await signOut(auth);
+    console.error("Logout error:", error);
 
+    alert("Unable to log out. Please try again.");
 
-alert("Logged out successfully 👋");
+    logoutBtn.disabled = false;
+    logoutBtn.textContent = "Logout";
 
-
-window.location.href="login.html";
-
-
-}
-
-
-catch(error){
-
-alert(error.message);
-
-}
-
+  }
 
 });
