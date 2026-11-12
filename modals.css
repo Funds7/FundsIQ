@@ -1,0 +1,260 @@
+/* =====================================
+   FUNDSIQ GLOBAL MODAL SYSTEM
+===================================== */
+
+body.fiq-modal-open {
+    overflow: hidden;
+}
+
+/* OVERLAY */
+
+.fiq-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+
+    background: rgba(3, 7, 18, 0.78);
+
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.fiq-modal-overlay.is-visible {
+    opacity: 1;
+}
+
+.fiq-modal-overlay.is-closing {
+    opacity: 0;
+}
+
+
+/* MAIN MODAL */
+
+.fiq-modal {
+    width: 100%;
+    max-width: 350px;
+
+    max-height: 82vh;
+    overflow-y: auto;
+
+    box-sizing: border-box;
+
+    padding: 25px 22px 22px;
+
+    border-radius: 23px;
+
+    border: 1px solid rgba(129, 140, 248, 0.25);
+
+    background: linear-gradient(
+        155deg,
+        #172238 0%,
+        #101827 100%
+    );
+
+    color: #f8fafc;
+
+    text-align: center;
+
+    box-shadow:
+        0 24px 70px rgba(0, 0, 0, 0.48),
+        0 0 32px rgba(59, 130, 246, 0.10);
+
+    transform: translateY(12px) scale(0.98);
+
+    transition: transform 0.2s ease;
+}
+
+.is-visible .fiq-modal {
+    transform: translateY(0) scale(1);
+}
+
+
+/* ICON */
+
+.fiq-modal__icon {
+    width: 58px;
+    height: 58px;
+
+    display: grid;
+    place-items: center;
+
+    margin: 0 auto 16px;
+
+    border-radius: 19px;
+
+    background: rgba(59, 130, 246, 0.15);
+
+    color: #93c5fd;
+
+    font-size: 29px;
+    font-weight: 800;
+
+    border: 1px solid rgba(96, 165, 250, 0.22);
+}
+
+
+/* SUCCESS */
+
+.fiq-modal--success .fiq-modal__icon {
+    color: #6ee7b7;
+
+    background: rgba(16, 185, 129, 0.13);
+
+    border-color: rgba(52, 211, 153, 0.25);
+}
+
+
+/* ERROR */
+
+.fiq-modal--error .fiq-modal__icon {
+    color: #fca5a5;
+
+    background: rgba(239, 68, 68, 0.13);
+
+    border-color: rgba(248, 113, 113, 0.25);
+}
+
+
+/* WARNING */
+
+.fiq-modal--warning .fiq-modal__icon {
+    color: #fcd34d;
+
+    background: rgba(245, 158, 11, 0.13);
+
+    border-color: rgba(251, 191, 36, 0.25);
+}
+
+
+/* TITLE */
+
+.fiq-modal__title {
+    margin: 0 0 9px;
+
+    color: #ffffff;
+
+    font-size: 21px;
+    line-height: 1.3;
+
+    font-weight: 750;
+}
+
+
+/* MESSAGE */
+
+.fiq-modal__message {
+    margin: 0;
+
+    color: #cbd5e1;
+
+    font-size: 15px;
+    line-height: 1.6;
+
+    overflow-wrap: anywhere;
+}
+
+
+/* DETAILS */
+
+.fiq-modal__details {
+    margin-top: 16px;
+
+    padding: 13px 14px;
+
+    border: 1px solid rgba(148, 163, 184, 0.12);
+
+    border-radius: 14px;
+
+    background: rgba(148, 163, 184, 0.07);
+
+    color: #e2e8f0;
+
+    text-align: left;
+
+    font-size: 14px;
+    line-height: 1.7;
+
+    white-space: pre-line;
+}
+
+
+/* ACTION BUTTON */
+
+.fiq-modal__action {
+    width: 100%;
+    min-height: 50px;
+
+    margin-top: 22px;
+
+    padding: 13px 18px;
+
+    border: none;
+    border-radius: 14px;
+
+    background: linear-gradient(
+        110deg,
+        #2563eb,
+        #5945e8
+    );
+
+    color: #ffffff;
+
+    font-size: 16px;
+    font-weight: 750;
+
+    cursor: pointer;
+
+    touch-action: manipulation;
+
+    box-shadow: 0 8px 22px rgba(37, 99, 235, 0.22);
+}
+
+.fiq-modal__action:active {
+    transform: scale(0.985);
+}
+
+.fiq-modal__action:focus-visible {
+    outline: 3px solid rgba(147, 197, 253, 0.8);
+    outline-offset: 3px;
+}
+
+
+/* MOBILE */
+
+@media (max-width: 420px) {
+
+    .fiq-modal-overlay {
+        padding: 18px;
+    }
+
+    .fiq-modal {
+        padding: 23px 19px 19px;
+        border-radius: 21px;
+    }
+
+    .fiq-modal__title {
+        font-size: 20px;
+    }
+
+}
+
+
+/* ACCESSIBILITY */
+
+@media (prefers-reduced-motion: reduce) {
+
+    .fiq-modal-overlay,
+    .fiq-modal {
+        transition: none;
+    }
+
+}
