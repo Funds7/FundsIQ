@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+import { showModal } from "./modals.js";
 
 import {
     createUserWithEmailAndPassword
@@ -6,7 +7,6 @@ import {
 
 import {
     doc,
-    setDoc,
     serverTimestamp,
     collection,
     query,
@@ -24,23 +24,13 @@ import {
 // ==========================================
 
 document.addEventListener("DOMContentLoaded", () => {
-
-    const params =
-        new URLSearchParams(window.location.search);
-
-    const ref =
-        params.get("ref");
-
-    const referralInput =
-        document.getElementById("referralCode");
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    const referralInput = document.getElementById("referralCode");
 
     if (ref && referralInput) {
-
-        referralInput.value =
-            ref.trim().toUpperCase();
-
+        referralInput.value = ref.trim().toUpperCase();
     }
-
 });
 
 
@@ -48,41 +38,20 @@ document.addEventListener("DOMContentLoaded", () => {
 // SIGNUP
 // ==========================================
 
-const signupBtn =
-    document.getElementById("signupBtn");
-
+const signupBtn = document.getElementById("signupBtn");
 
 if (signupBtn) {
 
     signupBtn.addEventListener("click", async () => {
 
-        const name =
-            document
-                .getElementById("name")
-                .value
-                .trim();
+        const name = document.getElementById("name").value.trim();
+        const email = document.getElementById("email").value.trim().toLowerCase();
+        const password = document.getElementById("password").value;
 
-
-        const email =
-            document
-                .getElementById("email")
-                .value
-                .trim()
-                .toLowerCase();
-
-
-        const password =
-            document
-                .getElementById("password")
-                .value;
-
-
-        const referralCode =
-            document
-                .getElementById("referralCode")
-                .value
-                .trim()
-                .toUpperCase();
+        const referralCode = document
+            .getElementById("referralCode")
+            .value.trim()
+            .toUpperCase();
 
 
         // ======================================
@@ -90,29 +59,26 @@ if (signupBtn) {
         // ======================================
 
         if (!name || !email || !password) {
-
-            alert(
-                "Please fill in all required fields."
-            );
-
+            await showModal({
+                type: "warning",
+                title: "Missing Information",
+                message: "Please fill in all required fields."
+            });
             return;
         }
 
-
         if (password.length < 6) {
-
-            alert(
-                "Password must be at least 6 characters."
-            );
-
+            await showModal({
+                type: "warning",
+                title: "Password Too Short",
+                message: "Your password must be at least 6 characters."
+            });
             return;
         }
 
 
         signupBtn.disabled = true;
-
-        signupBtn.textContent =
-            "Creating Account...";
+        signupBtn.textContent = "Creating Account...";
 
 
         try {
@@ -128,9 +94,7 @@ if (signupBtn) {
                     password
                 );
 
-
-            const user =
-                userCredential.user;
+            const user = userCredential.user;
 
 
             // ==================================
@@ -138,60 +102,28 @@ if (signupBtn) {
             // ==================================
 
             let referrerUid = null;
-
             let validReferralCode = "";
-
 
             if (referralCode) {
 
-                const usersRef =
-                    collection(
-                        db,
-                        "users"
-                    );
+                const usersRef = collection(db, "users");
 
+                const referralQuery = query(
+                    usersRef,
+                    where("referralCode", "==", referralCode)
+                );
 
-                const referralQuery =
-                    query(
-                        usersRef,
-                        where(
-                            "referralCode",
-                            "==",
-                            referralCode
-                        )
-                    );
+                const referralSnapshot = await getDocs(referralQuery);
 
+                if (!referralSnapshot.empty) {
 
-                const referralSnapshot =
-                    await getDocs(
-                        referralQuery
-                    );
+                    const referrerDoc = referralSnapshot.docs[0];
 
-
-                if (
-                    !referralSnapshot.empty
-                ) {
-
-                    const referrerDoc =
-                        referralSnapshot.docs[0];
-
-
-                    // Prevent self referral
-                    if (
-                        referrerDoc.id !==
-                        user.uid
-                    ) {
-
-                        referrerUid =
-                            referrerDoc.id;
-
-                        validReferralCode =
-                            referralCode;
-
+                    if (referrerDoc.id !== user.uid) {
+                        referrerUid = referrerDoc.id;
+                        validReferralCode = referralCode;
                     }
-
                 }
-
             }
 
 
@@ -199,178 +131,74 @@ if (signupBtn) {
             // FIRESTORE TRANSACTION
             // ==================================
 
-            await runTransaction(
-                db,
-                async (transaction) => {
+            await runTransaction(db, async (transaction) => {
 
-                    const newUserRef =
-                        doc(
-                            db,
-                            "users",
-                            user.uid
-                        );
+                const newUserRef = doc(db, "users", user.uid);
 
+                // CREATE NEW USER
 
-                    // ==================================
-                    // CREATE NEW USER
-                    // ==================================
+                transaction.set(newUserRef, {
 
-                    transaction.set(
-                        newUserRef,
-                        {
+                    uid: user.uid,
+                    name: name,
+                    email: email,
 
-                            uid:
-                                user.uid,
+                    // WELCOME BONUS
+                    coins: 20,
 
-                            name:
-                                name,
+                    role: "student",
+                    completedTests: 0,
+                    totalScore: 0,
+                    studyStreak: 0,
 
-                            email:
-                                email,
+                    // REFERRAL INFORMATION
+                    totalReferrals: 0,
+                    referredBy: validReferralCode,
 
+                    // PREMIUM / COMMISSION
+                    totalEarnings: 0,
+                    commissionBalance: 0,
+                    premiumReferrals: 0,
 
-                            // ==========================
-                            // WELCOME BONUS
-                            // ==========================
+                    createdAt: serverTimestamp()
 
-                            coins:
-                                20,
+                });
 
 
-                            role:
-                                "student",
+                // REWARD REFERRER
+
+                if (referrerUid) {
+
+                    const referrerRef = doc(db, "users", referrerUid);
+
+                    transaction.update(referrerRef, {
+
+                        coins: increment(10),
+                        totalReferrals: increment(1)
+
+                    });
 
 
-                            completedTests:
-                                0,
+                    // REFERRAL ACTIVITY
 
-
-                            totalScore:
-                                0,
-
-
-                            studyStreak:
-                                0,
-
-
-                            // ==========================
-                            // REFERRAL INFORMATION
-                            // ==========================
-
-                            totalReferrals:
-                                0,
-
-
-                            referredBy:
-                                validReferralCode,
-
-
-                            // ==========================
-                            // PREMIUM / COMMISSION
-                            // ==========================
-
-                            totalEarnings:
-                                0,
-
-
-                            commissionBalance:
-                                0,
-
-
-                            premiumReferrals:
-                                0,
-
-
-                            createdAt:
-                                serverTimestamp()
-
-                        }
+                    const activityRef = doc(
+                        collection(db, "users", referrerUid, "referrals")
                     );
 
+                    transaction.set(activityRef, {
 
-                    // ==================================
-                    // REWARD REFERRER
-                    // ==================================
+                        friendName: name,
+                        value: "+10 🪙",
+                        type: "coin_referral",
+                        referredUserId: user.uid,
+                        referralCode: validReferralCode,
+                        timestamp: serverTimestamp()
 
-                    if (referrerUid) {
-
-                        const referrerRef =
-                            doc(
-                                db,
-                                "users",
-                                referrerUid
-                            );
-
-
-                        // ==============================
-                        // +10 COINS
-                        // +1 REFERRAL
-                        // ==============================
-
-                        transaction.update(
-                            referrerRef,
-                            {
-
-                                coins:
-                                    increment(10),
-
-
-                                totalReferrals:
-                                    increment(1)
-
-                            }
-                        );
-
-
-                        // ==============================
-                        // REFERRAL ACTIVITY
-                        // ==============================
-
-                        const activityRef =
-                            doc(
-                                collection(
-                                    db,
-                                    "users",
-                                    referrerUid,
-                                    "referrals"
-                                )
-                            );
-
-
-                        transaction.set(
-                            activityRef,
-                            {
-
-                                friendName:
-                                    name,
-
-
-                                value:
-                                    "+10 🪙",
-
-
-                                type:
-                                    "coin_referral",
-
-
-                                referredUserId:
-                                    user.uid,
-
-
-                                referralCode:
-                                    validReferralCode,
-
-
-                                timestamp:
-                                    serverTimestamp()
-
-                            }
-                        );
-
-                    }
+                    });
 
                 }
-            );
+
+            });
 
 
             // ==================================
@@ -379,27 +207,26 @@ if (signupBtn) {
 
             if (referrerUid) {
 
-                alert(
-
-                    "🎉 Account created!\n\n" +
-
-                    "You received 20 coins 🪙\n\n" +
-
-                    "Your referral was successfully recorded!\n\n" +
-
-                    "Your referrer earned 10 coins 🪙"
-
-                );
+                await showModal({
+                    type: "success",
+                    title: "Account Created!",
+                    message: "Welcome to FundsIQ! Your account is ready.",
+                    details:
+                        "You received 20 welcome coins 🪙\n\n" +
+                        "Your referral was successfully recorded.\n" +
+                        "Your referrer earned 10 coins 🪙",
+                    buttonText: "Continue to Login"
+                });
 
             } else {
 
-                alert(
-
-                    "🎉 Account created!\n\n" +
-
-                    "You received 20 coins 🪙"
-
-                );
+                await showModal({
+                    type: "success",
+                    title: "Account Created!",
+                    message: "Welcome to FundsIQ! Your account is ready.",
+                    details: "You received 20 welcome coins 🪙",
+                    buttonText: "Continue to Login"
+                });
 
             }
 
@@ -408,70 +235,56 @@ if (signupBtn) {
             // GO TO LOGIN
             // ==================================
 
-            window.location.href =
-                "login.html";
+            window.location.href = "login.html";
 
 
         } catch (error) {
 
-            console.error(
-                "Signup error:",
-                error
-            );
+            console.error("Signup error:", error);
 
-
-            // ==================================
             // FIREBASE ERROR HANDLING
-            // ==================================
 
-            if (
-                error.code ===
-                "auth/email-already-in-use"
-            ) {
+            if (error.code === "auth/email-already-in-use") {
 
-                alert(
-                    "Email already registered."
-                );
+                await showModal({
+                    type: "error",
+                    title: "Email Already Registered",
+                    message: "An account already exists with this email address."
+                });
 
+            } else if (error.code === "auth/weak-password") {
 
-            } else if (
-                error.code ===
-                "auth/weak-password"
-            ) {
+                await showModal({
+                    type: "error",
+                    title: "Weak Password",
+                    message: "Please use a password with at least 6 characters."
+                });
 
-                alert(
-                    "Password must be at least 6 characters."
-                );
+            } else if (error.code === "auth/invalid-email") {
 
-
-            } else if (
-                error.code ===
-                "auth/invalid-email"
-            ) {
-
-                alert(
-                    "Please enter a valid email address."
-                );
-
+                await showModal({
+                    type: "error",
+                    title: "Invalid Email",
+                    message: "Please enter a valid email address."
+                });
 
             } else {
 
-                alert(
-                    "Signup failed: " +
-                    error.message
-                );
+                await showModal({
+                    type: "error",
+                    title: "Signup Failed",
+                    message: error.message || "Something went wrong. Please try again."
+                });
 
             }
 
         } finally {
 
             signupBtn.disabled = false;
-
-            signupBtn.textContent =
-                "Create Account";
+            signupBtn.textContent = "Create Account";
 
         }
 
     });
 
-}
+    }
