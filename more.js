@@ -78,13 +78,16 @@ export function showModal({
 
         let closed = false;
 
+        const onKeyDown = (event) => {
+            if (event.key === "Escape") close();
+        };
+
         const close = () => {
             if (closed) return;
             closed = true;
 
             overlay.classList.add("is-closing");
             document.body.classList.remove("fiq-modal-open");
-
             document.removeEventListener("keydown", onKeyDown);
 
             setTimeout(() => {
@@ -96,10 +99,6 @@ export function showModal({
 
                 resolve();
             }, 150);
-        };
-
-        const onKeyDown = (event) => {
-            if (event.key === "Escape") close();
         };
 
         button.addEventListener("click", close);
