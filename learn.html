@@ -14,18 +14,15 @@
 
 <div class="container">
 
-    <!-- Chapter Header -->
     <div class="chapter-header">
         <h1 id="chapterTitle"></h1>
         <p>📚 Learn • Practice • Pass</p>
     </div>
 
-    <!-- Notes -->
     <div id="contentArea"></div>
 
     <br>
 
-    <!-- Chapter Test Button -->
     <button class="main-btn" onclick="startTest()">
         📝 Take Chapter Test
     </button>
@@ -67,10 +64,6 @@ const chapter =
 const chapterKey = "chapter" + chapter;
 
 const bookmarkKey = "fundsiq_bookmarks";
-
-console.log("Course:", course);
-console.log("Chapter:", chapter);
-console.log("Key:", chapterKey);
 
 
 // =====================================
@@ -123,9 +116,10 @@ function isBookmarked(pointId) {
 
 // =====================================
 // TOGGLE BOOKMARK
+// NO POPUP
 // =====================================
 
-async function toggleBookmark(pointId, button) {
+function toggleBookmark(pointId, button) {
 
     let bookmarks = getBookmarks();
 
@@ -133,11 +127,7 @@ async function toggleBookmark(pointId, button) {
         bookmark => bookmark.id === pointId
     );
 
-    const { showModal } = await getModals();
-
     if (existingIndex !== -1) {
-
-        // REMOVE BOOKMARK
 
         bookmarks.splice(existingIndex, 1);
 
@@ -145,16 +135,7 @@ async function toggleBookmark(pointId, button) {
 
         saveBookmarks(bookmarks);
 
-        await showModal({
-            type: "info",
-            title: "Bookmark Removed",
-            message: "This study point has been removed from your bookmarks.",
-            buttonText: "Continue"
-        });
-
     } else {
-
-        // SAVE BOOKMARK
 
         const point = document.getElementById(
             "point-" + pointId
@@ -181,13 +162,6 @@ async function toggleBookmark(pointId, button) {
         button.innerHTML = "✅ Bookmarked";
 
         saveBookmarks(bookmarks);
-
-        await showModal({
-            type: "success",
-            title: "Bookmark Saved",
-            message: "This study point has been added to your bookmarks.",
-            buttonText: "Continue"
-        });
 
     }
 
@@ -216,8 +190,6 @@ async function sharePoint(pointId) {
         "\n\nLearn • Practice • Pass";
 
 
-    // NATIVE SHARE MENU
-
     if (navigator.share) {
 
         try {
@@ -238,8 +210,6 @@ async function sharePoint(pointId) {
 
     } else {
 
-        // CLIPBOARD FALLBACK
-
         const { showModal } = await getModals();
 
         try {
@@ -247,10 +217,15 @@ async function sharePoint(pointId) {
             await navigator.clipboard.writeText(shareText);
 
             await showModal({
+
                 type: "success",
+
                 title: "Copied Successfully",
+
                 message: "This study point has been copied. You can now share it with your friends.",
+
                 buttonText: "Continue"
+
             });
 
         } catch (error) {
@@ -258,10 +233,15 @@ async function sharePoint(pointId) {
             console.error("Copy error:", error);
 
             await showModal({
+
                 type: "error",
+
                 title: "Unable to Copy",
+
                 message: "Your browser could not copy this study point. Please try again.",
+
                 buttonText: "Continue"
+
             });
 
         }
@@ -288,8 +268,6 @@ async function reportPoint(pointId) {
 
     const pointNumber = pointId.split("-").pop();
 
-
-    // ASK FOR REPORT REASON
 
     const reason = await showInputModal({
 
@@ -334,8 +312,6 @@ async function reportPoint(pointId) {
     }
 
 
-    // PREPARE REPORT
-
     const subject =
         "FundsIQ Note Report - " +
         course.toUpperCase() +
@@ -349,8 +325,6 @@ async function reportPoint(pointId) {
         "\n\nReported Note:\n" + point.innerText +
         "\n\nReason for Report:\n" + reason;
 
-
-    // OPEN EMAIL APPLICATION
 
     const email =
         "mailto:fundsiq@gmail.com" +
