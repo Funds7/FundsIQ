@@ -1,114 +1,176 @@
-import "./modals.css";
-
 let activeModal = null;
 
+
+// =====================================
+// LOAD MODAL CSS
+// =====================================
+
+function loadModalStyles() {
+    if (document.getElementById("fundsiq-modal-styles")) return;
+
+    const link = document.createElement("link");
+
+    link.id = "fundsiq-modal-styles";
+    link.rel = "stylesheet";
+    link.href = new URL("./modals.css", import.meta.url).href;
+
+    document.head.appendChild(link);
+}
+
+
+// =====================================
+// SHOW FUNDSIQ MODAL
+// =====================================
+
 export function showModal({
-  type = "info",
-  title = "FundsIQ",
-  message = "",
-  details = "",
-  buttonText = "Continue"
+    type = "info",
+    title = "FundsIQ",
+    message = "",
+    details = "",
+    buttonText = "Continue"
 } = {}) {
 
-  if (activeModal) {
-    activeModal.remove();
-    activeModal = null;
-  }
+    loadModalStyles();
 
-  return new Promise((resolve) => {
-
-    const icons = {
-      success: "✓",
-      error: "!",
-      warning: "⚠",
-      info: "i"
-    };
-
-    const overlay = document.createElement("div");
-    overlay.className = "fiq-modal-overlay";
-
-    const dialog = document.createElement("section");
-    dialog.className = `fiq-modal fiq-modal--${type}`;
-
-    dialog.setAttribute("role", "alertdialog");
-    dialog.setAttribute("aria-modal", "true");
-
-    const icon = document.createElement("div");
-    icon.className = "fiq-modal__icon";
-    icon.textContent = icons[type] || icons.info;
-
-    const heading = document.createElement("h2");
-    heading.className = "fiq-modal__title";
-    heading.textContent = title;
-
-    const body = document.createElement("p");
-    body.className = "fiq-modal__message";
-    body.textContent = message;
-
-    dialog.append(icon, heading, body);
-
-    if (details) {
-      const extra = document.createElement("div");
-      extra.className = "fiq-modal__details";
-      extra.textContent = details;
-      dialog.append(extra);
+    if (activeModal) {
+        activeModal.remove();
+        activeModal = null;
     }
 
-    const button = document.createElement("button");
-    button.className = "fiq-modal__action";
-    button.type = "button";
-    button.textContent = buttonText;
+    return new Promise((resolve) => {
 
-    dialog.append(button);
-    overlay.append(dialog);
+        const icons = {
+            success: "✓",
+            error: "!",
+            warning: "⚠",
+            info: "i"
+        };
 
-    document.body.append(overlay);
+        // OVERLAY
+        const overlay = document.createElement("div");
+        overlay.className = "fiq-modal-overlay";
 
-    activeModal = overlay;
+        // MODAL BOX
+        const dialog = document.createElement("section");
 
-    document.body.classList.add("fiq-modal-open");
+        dialog.className = `fiq-modal fiq-modal--${type}`;
 
-    const close = () => {
+        dialog.setAttribute("role", "alertdialog");
+        dialog.setAttribute("aria-modal", "true");
 
-      if (!overlay.isConnected) return;
+        // ICON
+        const icon = document.createElement("div");
 
-      overlay.classList.add("is-closing");
+        icon.className = "fiq-modal__icon";
+        icon.textContent = icons[type] || icons.info;
 
-      document.body.classList.remove("fiq-modal-open");
+        // TITLE
+        const heading = document.createElement("h2");
 
-      setTimeout(() => {
+        heading.className = "fiq-modal__title";
+        heading.textContent = title;
 
-        overlay.remove();
+        // MESSAGE
+        const body = document.createElement("p");
 
-        if (activeModal === overlay) {
-          activeModal = null;
+        body.className = "fiq-modal__message";
+        body.textContent = message;
+
+        dialog.append(icon, heading, body);
+
+
+        // OPTIONAL DETAILS
+        if (details) {
+
+            const extra = document.createElement("div");
+
+            extra.className = "fiq-modal__details";
+            extra.textContent = details;
+
+            dialog.append(extra);
         }
 
-        resolve();
 
-      }, 150);
-    };
+        // ACTION BUTTON
+        const button = document.createElement("button");
 
-    button.addEventListener("click", close);
+        button.className = "fiq-modal__action";
+        button.type = "button";
+        button.textContent = buttonText;
 
-    overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) {
-        close();
-      }
+        dialog.append(button);
+
+        overlay.append(dialog);
+
+        document.body.append(overlay);
+
+        activeModal = overlay;
+
+        document.body.classList.add("fiq-modal-open");
+
+
+        // CLOSE MODAL
+        let closed = false;
+
+        const onKeyDown = (event) => {
+            if (event.key === "Escape") {
+                close();
+            }
+        };
+
+        const close = () => {
+
+            if (closed) return;
+
+            closed = true;
+
+            overlay.classList.add("is-closing");
+
+            document.body.classList.remove("fiq-modal-open");
+
+            document.removeEventListener("keydown", onKeyDown);
+
+            setTimeout(() => {
+
+                overlay.remove();
+
+                if (activeModal === overlay) {
+                    activeModal = null;
+                }
+
+                resolve();
+
+            }, 150);
+        };
+
+
+        // BUTTON CLICK
+        button.addEventListener("click", close);
+
+
+        // OUTSIDE CLICK
+        overlay.addEventListener("click", (event) => {
+
+            if (event.target === overlay) {
+                close();
+            }
+
+        });
+
+
+        // ESCAPE KEY
+        document.addEventListener("keydown", onKeyDown);
+
+
+        // SHOW ANIMATION
+        requestAnimationFrame(() => {
+
+            overlay.classList.add("is-visible");
+
+            button.focus();
+
+        });
+
     });
 
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") {
-        close();
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown);
-
-    requestAnimationFrame(() => {
-      overlay.classList.add("is-visible");
-      button.focus();
-    });
-
-  });
 }
