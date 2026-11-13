@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+import { showModal } from "./modals.js";
 
 import {
     onAuthStateChanged
@@ -11,11 +12,13 @@ import {
     increment
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
+
 /* =========================================================================
 FUNDSIQ API
 ========================================================================= */
 
 const API_URL = "https://fundsiq-api.onrender.com";
+
 
 /* =========================================================================
 GET USER DATA
@@ -30,16 +33,16 @@ async function getUserData() {
         const userRef = doc(db, "users", user.uid);
         const snap = await getDoc(userRef);
 
-        if (!snap.exists()) {
-            return null;
-        }
+        if (!snap.exists()) return null;
 
         return snap.data();
+
     } catch (error) {
         console.error("Error getting user data:", error);
         return null;
     }
 }
+
 
 /* =========================================================================
 CHECK PREMIUM STATUS
@@ -49,6 +52,7 @@ async function isPremiumUser() {
     const userData = await getUserData();
     return userData?.premium === true;
 }
+
 
 /* =========================================================================
 UPDATE PREMIUM DISPLAY
@@ -69,6 +73,7 @@ async function updatePremiumDisplay() {
         if (upgradeBtn) {
             upgradeBtn.innerHTML = "💎 Premium Active";
         }
+
     } else {
         status.innerText = "Free Account";
         status.classList.remove("premium-active");
@@ -81,6 +86,7 @@ async function updatePremiumDisplay() {
     document.body.classList.toggle("is-premium", premium);
 }
 
+
 /* =========================================================================
 GET COINS
 ========================================================================= */
@@ -92,6 +98,7 @@ async function getCoins() {
 
     return userData.coins ?? 0;
 }
+
 
 /* =========================================================================
 UPDATE COIN DISPLAY
@@ -106,6 +113,7 @@ async function updateCoinDisplay() {
     coin.innerText = balance;
 }
 
+
 /* =========================================================================
 SPEND COINS
 ========================================================================= */
@@ -114,33 +122,45 @@ async function spendCoins(amount, reason = "Purchase") {
     const user = auth.currentUser;
 
     if (!user) {
-        alert("Please login first.");
+
+        await showModal({
+            type: "warning",
+            title: "Login Required",
+            message: "Please login to continue."
+        });
+
         return false;
     }
 
     const premium = await isPremiumUser();
 
-    if (premium) {
-        return true;
-    }
+    if (premium) return true;
 
     const userRef = doc(db, "users", user.uid);
     const snap = await getDoc(userRef);
 
     if (!snap.exists()) {
-        alert("User profile not found.");
+
+        await showModal({
+            type: "error",
+            title: "Profile Not Found",
+            message: "We couldn't find your FundsIQ account profile."
+        });
+
         return false;
     }
 
     const currentCoins = snap.data().coins ?? 0;
 
     if (currentCoins < amount) {
-        alert(`❌ Not enough coins 🪙
 
-Need: ${amount} coins
-
-Your balance:
-${currentCoins} 🪙`);
+        await showModal({
+            type: "warning",
+            title: "Insufficient Coins",
+            message: "You don't have enough coins to complete this action.",
+            details: `Required: ${amount} coins\nYour balance: ${currentCoins} coins`,
+            buttonText: "Okay"
+        });
 
         return false;
     }
@@ -154,6 +174,7 @@ ${currentCoins} 🪙`);
     return true;
 }
 
+
 /* =========================================================================
 REWARD COINS
 ========================================================================= */
@@ -161,7 +182,16 @@ REWARD COINS
 async function rewardCoins(amount, reason = "Reward") {
     const user = auth.currentUser;
 
-    if (!user) return false;
+    if (!user) {
+
+        await showModal({
+            type: "warning",
+            title: "Login Required",
+            message: "Please login to receive your reward."
+        });
+
+        return false;
+    }
 
     try {
         const userRef = doc(db, "users", user.uid);
@@ -172,16 +202,29 @@ async function rewardCoins(amount, reason = "Reward") {
 
         await updateCoinDisplay();
 
-        alert(`🎉 +${amount} Coins
-
-${reason}`);
+        await showModal({
+            type: "success",
+            title: "Coins Received!",
+            message: `Congratulations! You received ${amount} coins.`,
+            details: reason,
+            buttonText: "Awesome!"
+        });
 
         return true;
+
     } catch (error) {
         console.error("Reward coins error:", error);
+
+        await showModal({
+            type: "error",
+            title: "Reward Failed",
+            message: "We couldn't add your coins. Please try again."
+        });
+
         return false;
     }
 }
+
 
 /* =========================================================================
 PREMIUM MODAL
@@ -200,6 +243,7 @@ function openPremiumModal() {
     document.body.classList.add("modal-open");
 }
 
+
 function closePremiumModal() {
     const modal = document.getElementById("premiumModal");
 
@@ -209,6 +253,7 @@ function closePremiumModal() {
     modal.setAttribute("aria-hidden", "true");
     document.body.classList.remove("modal-open");
 }
+
 
 /* =========================================================================
 PREMIUM MODAL EVENTS
@@ -238,6 +283,7 @@ function setupPremiumModal() {
     });
 }
 
+
 /* =========================================================================
 PREMIUM PAYMENT
 ========================================================================= */
@@ -248,7 +294,13 @@ async function startPremiumPayment() {
     const user = auth.currentUser;
 
     if (!user) {
-        alert("Please login first before upgrading to Premium.");
+
+        await showModal({
+            type: "warning",
+            title: "Login Required",
+            message: "Please login before upgrading to Premium."
+        });
+
         return;
     }
 
@@ -283,14 +335,20 @@ async function startPremiumPayment() {
         }
 
         window.location.href = data.authorization_url;
+
     } catch (error) {
         console.error("Premium payment error:", error);
 
-        alert(`❌ Premium payment could not start.
-
-${error.message}`);
+        await showModal({
+            type: "error",
+            title: "Payment Could Not Start",
+            message: "We couldn't connect to the payment service.",
+            details: error.message,
+            buttonText: "Okay"
+        });
     }
 }
+
 
 /* =========================================================================
 PREMIUM BUTTON
@@ -307,17 +365,21 @@ function setupPremiumButton() {
     upgradeBtn.addEventListener("click", async () => {
         upgradeBtn.disabled = true;
 
-        const premium = await isPremiumUser();
+        try {
+            const premium = await isPremiumUser();
 
-        if (premium) {
-            openPremiumModal();
-        } else {
-            await startPremiumPayment();
+            if (premium) {
+                openPremiumModal();
+            } else {
+                await startPremiumPayment();
+            }
+
+        } finally {
+            upgradeBtn.disabled = false;
         }
-
-        upgradeBtn.disabled = false;
     });
 }
+
 
 /* =========================================================================
 CBT PRACTICE
@@ -338,6 +400,7 @@ async function startPractice() {
     }
 }
 
+
 /* =========================================================================
 LEADERBOARD
 ========================================================================= */
@@ -348,7 +411,11 @@ async function unlockWithCoins() {
     if (premium) {
         localStorage.setItem("leaderboardAccess", "true");
 
-        alert("💎 Premium Leaderboard Access Activated!");
+        await showModal({
+            type: "success",
+            title: "Premium Access Activated!",
+            message: "Your Premium account gives you leaderboard access."
+        });
 
         location.reload();
         return;
@@ -359,11 +426,16 @@ async function unlockWithCoins() {
     if (paid) {
         localStorage.setItem("leaderboardAccess", "true");
 
-        alert("🏆 Leaderboard Activated!");
+        await showModal({
+            type: "success",
+            title: "Leaderboard Unlocked!",
+            message: "You can now access the leaderboard."
+        });
 
         location.reload();
     }
 }
+
 
 /* =========================================================================
 PREMIUM UNLOCK
@@ -380,12 +452,13 @@ async function premiumUnlock() {
     await startPremiumPayment();
 }
 
+
 /* =========================================================================
 MORE PAGE CARDS
 ========================================================================= */
 
 function setupMorePageCards() {
-    // Top Referrals
+
     const topReferralsBtn = document.getElementById("top-referrals-btn");
 
     if (topReferralsBtn) {
@@ -394,7 +467,7 @@ function setupMorePageCards() {
         });
     }
 
-    // My Referrals
+
     const myReferralsBtn = document.getElementById("my-referrals-btn");
 
     if (myReferralsBtn) {
@@ -403,7 +476,7 @@ function setupMorePageCards() {
         });
     }
 
-    // Bookmarks
+
     const bookmarksBtn = document.getElementById("bookmarks-btn");
 
     if (bookmarksBtn) {
@@ -412,11 +485,12 @@ function setupMorePageCards() {
         });
     }
 
-    // Share FundsIQ
+
     const shareBtn = document.getElementById("share-app-btn");
 
     if (shareBtn) {
         shareBtn.addEventListener("click", async () => {
+
             const shareData = {
                 title: "FundsIQ",
                 text: "Study smart and score higher with FundsIQ!",
@@ -424,23 +498,49 @@ function setupMorePageCards() {
             };
 
             try {
+
                 if (navigator.share) {
+
                     await navigator.share(shareData);
+
                 } else if (navigator.clipboard) {
+
                     await navigator.clipboard.writeText(shareData.url);
-                    alert("FundsIQ link copied. You can now share it!");
+
+                    await showModal({
+                        type: "success",
+                        title: "Link Copied!",
+                        message: "Your FundsIQ sharing link has been copied."
+                    });
+
                 } else {
-                    window.prompt("Copy this FundsIQ link:", shareData.url);
+
+                    await showModal({
+                        type: "info",
+                        title: "Share FundsIQ",
+                        message: "Copy this link and share it with your friends.",
+                        details: shareData.url
+                    });
                 }
+
             } catch (error) {
+
                 if (error.name !== "AbortError") {
+
                     console.error("Share error:", error);
-                    window.prompt("Copy this FundsIQ link:", shareData.url);
+
+                    await showModal({
+                        type: "info",
+                        title: "Share FundsIQ",
+                        message: "You can copy and share this link:",
+                        details: shareData.url
+                    });
                 }
             }
         });
     }
 }
+
 
 /* =========================================================================
 AUTH STATE
@@ -450,6 +550,7 @@ onAuthStateChanged(auth, async (user) => {
     const status = document.getElementById("premiumStatus");
 
     if (!user) {
+
         if (status) {
             status.innerText = "Free Account";
         }
@@ -458,7 +559,6 @@ onAuthStateChanged(auth, async (user) => {
         return;
     }
 
-    // Show a useful state while account information loads.
     if (status) {
         status.innerText = "Loading your account...";
     }
@@ -466,6 +566,7 @@ onAuthStateChanged(auth, async (user) => {
     await updateCoinDisplay();
     await updatePremiumDisplay();
 });
+
 
 /* =========================================================================
 PAGE LOAD
@@ -476,6 +577,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupPremiumModal();
     setupMorePageCards();
 });
+
 
 /* =========================================================================
 GLOBAL EXPORTS
