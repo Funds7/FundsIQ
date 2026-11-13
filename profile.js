@@ -10,6 +10,8 @@ import {
   getDoc
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
+import { showModal } from "./modals.js";
+
 
 // PROFILE ELEMENTS
 
@@ -30,9 +32,9 @@ onAuthStateChanged(auth, async (user) => {
 
   try {
 
-    profileName.textContent = "Loading...";
-    profileEmail.textContent = "";
-    profileCoins.textContent = "0";
+    if (profileName) profileName.textContent = "Loading...";
+    if (profileEmail) profileEmail.textContent = "";
+    if (profileCoins) profileCoins.textContent = "0";
 
     const userRef = doc(db, "users", user.uid);
 
@@ -42,16 +44,27 @@ onAuthStateChanged(auth, async (user) => {
 
       const data = userSnap.data();
 
-      profileName.textContent = data.name || "FundsIQ Student";
+      if (profileName) {
+        profileName.textContent = data.name || "FundsIQ Student";
+      }
 
-      profileEmail.textContent = data.email || user.email || "";
+      if (profileEmail) {
+        profileEmail.textContent = data.email || user.email || "";
+      }
 
-      profileCoins.textContent = data.coins ?? 0;
+      if (profileCoins) {
+        profileCoins.textContent = data.coins ?? 0;
+      }
 
     } else {
 
-      profileName.textContent = "Profile not found";
-      profileEmail.textContent = user.email || "";
+      if (profileName) {
+        profileName.textContent = "Profile not found";
+      }
+
+      if (profileEmail) {
+        profileEmail.textContent = user.email || "";
+      }
 
     }
 
@@ -59,8 +72,13 @@ onAuthStateChanged(auth, async (user) => {
 
     console.error("Profile loading error:", error);
 
-    profileName.textContent = "Unable to load profile";
-    profileEmail.textContent = "Please check your internet connection.";
+    if (profileName) {
+      profileName.textContent = "Unable to load profile";
+    }
+
+    if (profileEmail) {
+      profileEmail.textContent = "Please check your internet connection.";
+    }
 
   }
 
@@ -69,26 +87,35 @@ onAuthStateChanged(auth, async (user) => {
 
 // LOGOUT FUNCTION
 
-logoutBtn.addEventListener("click", async () => {
+if (logoutBtn) {
 
-  try {
+  logoutBtn.addEventListener("click", async () => {
 
-    logoutBtn.disabled = true;
-    logoutBtn.textContent = "Logging out...";
+    try {
 
-    await signOut(auth);
+      logoutBtn.disabled = true;
+      logoutBtn.textContent = "Logging out...";
 
-    window.location.replace("login.html");
+      await signOut(auth);
 
-  } catch (error) {
+      window.location.replace("login.html");
 
-    console.error("Logout error:", error);
+    } catch (error) {
 
-    alert("Unable to log out. Please try again.");
+      console.error("Logout error:", error);
 
-    logoutBtn.disabled = false;
-    logoutBtn.textContent = "Logout";
+      await showModal({
+        type: "error",
+        title: "Logout Failed",
+        message: "Unable to log out. Please try again.",
+        buttonText: "Continue"
+      });
 
-  }
+      logoutBtn.disabled = false;
+      logoutBtn.textContent = "Logout";
 
-});
+    }
+
+  });
+
+}
