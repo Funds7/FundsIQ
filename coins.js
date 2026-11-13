@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+import { showModal } from "./modals.js";
 
 import {
     onAuthStateChanged
@@ -76,7 +77,11 @@ async function spendCoins(amount, reason = "Purchase") {
 
     if (!user) {
 
-        alert("Please login first.");
+        await showModal({
+            type: "warning",
+            title: "Login Required",
+            message: "Please log in to use your coins."
+        });
 
         return false;
     }
@@ -85,7 +90,11 @@ async function spendCoins(amount, reason = "Purchase") {
 
     if (!Number.isFinite(amount) || amount <= 0) {
 
-        alert("Invalid coin amount.");
+        await showModal({
+            type: "error",
+            title: "Invalid Amount",
+            message: "The coin amount is not valid."
+        });
 
         return false;
     }
@@ -102,7 +111,7 @@ async function spendCoins(amount, reason = "Purchase") {
 
                 return {
                     success: false,
-                    message: "User profile not found."
+                    message: "Your user profile could not be found."
                 };
             }
 
@@ -112,12 +121,7 @@ async function spendCoins(amount, reason = "Purchase") {
 
                 return {
                     success: false,
-                    message: `❌ Not enough coins 🪙
-
-Need: ${amount} coins
-
-Your balance:
-${currentCoins} 🪙`
+                    message: `You need ${amount} coins, but your current balance is ${currentCoins} coins.`
                 };
             }
 
@@ -133,12 +137,16 @@ ${currentCoins} 🪙`
 
         if (!result.success) {
 
-            alert(result.message);
+            await showModal({
+                type: "warning",
+                title: "Insufficient Coins",
+                message: result.message,
+                details: "Earn more coins by watching rewarded ads or inviting friends."
+            });
 
             return false;
         }
 
-        // Refresh display without undoing a successful payment
         updateCoinDisplay().catch(error => {
             console.error("Coin display refresh error:", error);
         });
@@ -151,10 +159,12 @@ ${currentCoins} 🪙`
 
         console.error("Spend coins error:", error);
 
-        alert(
-            "Unable to complete coin payment.\n\n" +
-            "Please check your internet connection and try again."
-        );
+        await showModal({
+            type: "error",
+            title: "Payment Failed",
+            message: "Unable to complete your coin payment.",
+            details: "Please check your internet connection and try again."
+        });
 
         return false;
     }
@@ -188,7 +198,11 @@ async function rewardCoins(amount, reason = "Reward") {
 
         if (!snap.exists()) {
 
-            alert("User profile not found.");
+            await showModal({
+                type: "error",
+                title: "Profile Not Found",
+                message: "Your FundsIQ profile could not be found."
+            });
 
             return false;
         }
@@ -201,9 +215,12 @@ async function rewardCoins(amount, reason = "Reward") {
             console.error("Coin display refresh error:", error);
         });
 
-        alert(`🎉 +${amount} Coins
-
-${reason}`);
+        await showModal({
+            type: "success",
+            title: "Coins Received!",
+            message: `You've received ${amount} coins.`,
+            details: reason
+        });
 
         return true;
 
@@ -211,10 +228,12 @@ ${reason}`);
 
         console.error("Reward coins error:", error);
 
-        alert(
-            "Unable to add coins.\n\n" +
-            "Please check your internet connection and try again."
-        );
+        await showModal({
+            type: "error",
+            title: "Reward Failed",
+            message: "Unable to add coins to your account.",
+            details: "Please check your internet connection and try again."
+        });
 
         return false;
     }
@@ -248,7 +267,11 @@ async function unlockWithCoins() {
 
         localStorage.setItem("leaderboardAccess", "true");
 
-        alert("🏆 Leaderboard Activated!");
+        await showModal({
+            type: "success",
+            title: "Leaderboard Activated!",
+            message: "You have successfully unlocked leaderboard access."
+        });
 
         location.reload();
     }
@@ -259,9 +282,13 @@ async function unlockWithCoins() {
 // PREMIUM UNLOCK
 // ==========================================
 
-function premiumUnlock() {
+async function premiumUnlock() {
 
-    alert("💎 Premium Leaderboard coming soon");
+    await showModal({
+        type: "info",
+        title: "Premium Leaderboard",
+        message: "Premium leaderboard access is coming soon."
+    });
 }
 
 
