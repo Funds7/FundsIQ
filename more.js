@@ -1,118 +1,494 @@
-let activeModal = null;
+import { auth, db } from "./firebase.js";
 
-function loadModalStyles() {
-    if (document.getElementById("fundsiq-modal-styles")) return;
+import {
+    onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-    const link = document.createElement("link");
-    link.id = "fundsiq-modal-styles";
-    link.rel = "stylesheet";
-    link.href = new URL("./modals.css", import.meta.url).href;
+import {
+    doc,
+    getDoc,
+    updateDoc,
+    increment
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
-    document.head.appendChild(link);
-}
+/* =========================================================================
+FUNDSIQ API
+========================================================================= */
 
-export function showModal({
-    type = "info",
-    title = "FundsIQ",
-    message = "",
-    details = "",
-    buttonText = "Continue"
-} = {}) {
+const API_URL = "https://fundsiq-api.onrender.com";
 
-    loadModalStyles();
+/* =========================================================================
+GET USER DATA
+========================================================================= */
 
-    if (activeModal) {
-        activeModal.remove();
-        activeModal = null;
-    }
+async function getUserData() {
+    const user = auth.currentUser;
 
-    return new Promise((resolve) => {
+    if (!user) return null;
 
-        const icons = {
-            success: "✓",
-            error: "!",
-            warning: "⚠",
-            info: "i"
-        };
+    try {
+        const userRef = doc(db, "users", user.uid);
+        const snap = await getDoc(userRef);
 
-        const overlay = document.createElement("div");
-        overlay.className = "fiq-modal-overlay";
-
-        const dialog = document.createElement("section");
-        dialog.className = `fiq-modal fiq-modal--${type}`;
-        dialog.setAttribute("role", "alertdialog");
-        dialog.setAttribute("aria-modal", "true");
-
-        const icon = document.createElement("div");
-        icon.className = "fiq-modal__icon";
-        icon.textContent = icons[type] || icons.info;
-
-        const heading = document.createElement("h2");
-        heading.className = "fiq-modal__title";
-        heading.textContent = title;
-
-        const body = document.createElement("p");
-        body.className = "fiq-modal__message";
-        body.textContent = message;
-
-        dialog.append(icon, heading, body);
-
-        if (details) {
-            const extra = document.createElement("div");
-            extra.className = "fiq-modal__details";
-            extra.textContent = details;
-            dialog.append(extra);
+        if (!snap.exists()) {
+            return null;
         }
 
-        const button = document.createElement("button");
-        button.className = "fiq-modal__action";
-        button.type = "button";
-        button.textContent = buttonText;
+        return snap.data();
+    } catch (error) {
+        console.error("Error getting user data:", error);
+        return null;
+    }
+}
 
-        dialog.append(button);
-        overlay.append(dialog);
-        document.body.append(overlay);
+/* =========================================================================
+CHECK PREMIUM STATUS
+========================================================================= */
 
-        activeModal = overlay;
-        document.body.classList.add("fiq-modal-open");
+async function isPremiumUser() {
+    const userData = await getUserData();
+    return userData?.premium === true;
+}
 
-        let closed = false;
+/* =========================================================================
+UPDATE PREMIUM DISPLAY
+========================================================================= */
 
-        const onKeyDown = (event) => {
-            if (event.key === "Escape") close();
-        };
+async function updatePremiumDisplay() {
+    const status = document.getElementById("premiumStatus");
+    const upgradeBtn = document.getElementById("upgradeBtn");
 
-        const close = () => {
-            if (closed) return;
-            closed = true;
+    if (!status) return;
 
-            overlay.classList.add("is-closing");
-            document.body.classList.remove("fiq-modal-open");
-            document.removeEventListener("keydown", onKeyDown);
+    const premium = await isPremiumUser();
 
-            setTimeout(() => {
-                overlay.remove();
+    if (premium) {
+        status.innerText = "💎 Premium Active";
+        status.classList.add("premium-active");
 
-                if (activeModal === overlay) {
-                    activeModal = null;
-                }
+        if (upgradeBtn) {
+            upgradeBtn.innerHTML = "💎 Premium Active";
+        }
+    } else {
+        status.innerText = "Free Account";
+        status.classList.remove("premium-active");
 
-                resolve();
-            }, 150);
-        };
+        if (upgradeBtn) {
+            upgradeBtn.innerHTML = "👑 Upgrade Now";
+        }
+    }
 
-        button.addEventListener("click", close);
+    document.body.classList.toggle("is-premium", premium);
+}
 
-        overlay.addEventListener("click", (event) => {
-            if (event.target === overlay) close();
+/* =========================================================================
+GET COINS
+========================================================================= */
+
+async function getCoins() {
+    const userData = await getUserData();
+
+    if (!userData) return 0;
+
+    return userData.coins ?? 0;
+}
+
+/* =========================================================================
+UPDATE COIN DISPLAY
+========================================================================= */
+
+async function updateCoinDisplay() {
+    const coin = document.getElementById("coinBalance");
+
+    if (!coin) return;
+
+    const balance = await getCoins();
+    coin.innerText = balance;
+}
+
+/* =========================================================================
+SPEND COINS
+========================================================================= */
+
+async function spendCoins(amount, reason = "Purchase") {
+    const user = auth.currentUser;
+
+    if (!user) {
+        alert("Please login first.");
+        return false;
+    }
+
+    const premium = await isPremiumUser();
+
+    if (premium) {
+        return true;
+    }
+
+    const userRef = doc(db, "users", user.uid);
+    const snap = await getDoc(userRef);
+
+    if (!snap.exists()) {
+        alert("User profile not found.");
+        return false;
+    }
+
+    const currentCoins = snap.data().coins ?? 0;
+
+    if (currentCoins < amount) {
+        alert(`❌ Not enough coins 🪙
+
+Need: ${amount} coins
+
+Your balance:
+${currentCoins} 🪙`);
+
+        return false;
+    }
+
+    await updateDoc(userRef, {
+        coins: increment(-amount)
+    });
+
+    await updateCoinDisplay();
+
+    return true;
+}
+
+/* =========================================================================
+REWARD COINS
+========================================================================= */
+
+async function rewardCoins(amount, reason = "Reward") {
+    const user = auth.currentUser;
+
+    if (!user) return false;
+
+    try {
+        const userRef = doc(db, "users", user.uid);
+
+        await updateDoc(userRef, {
+            coins: increment(amount)
         });
 
-        document.addEventListener("keydown", onKeyDown);
+        await updateCoinDisplay();
 
-        requestAnimationFrame(() => {
-            overlay.classList.add("is-visible");
-            button.focus();
-        });
+        alert(`🎉 +${amount} Coins
 
+${reason}`);
+
+        return true;
+    } catch (error) {
+        console.error("Reward coins error:", error);
+        return false;
+    }
+}
+
+/* =========================================================================
+PREMIUM MODAL
+========================================================================= */
+
+function openPremiumModal() {
+    const modal = document.getElementById("premiumModal");
+
+    if (!modal) {
+        console.warn("premiumModal was not found.");
+        return;
+    }
+
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+}
+
+function closePremiumModal() {
+    const modal = document.getElementById("premiumModal");
+
+    if (!modal) return;
+
+    modal.classList.remove("show");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+}
+
+/* =========================================================================
+PREMIUM MODAL EVENTS
+========================================================================= */
+
+function setupPremiumModal() {
+    const closeBtn = document.getElementById("premiumModalClose");
+    const okBtn = document.getElementById("premiumModalOk");
+    const overlay = document.getElementById("premiumModalOverlay");
+
+    if (closeBtn) {
+        closeBtn.addEventListener("click", closePremiumModal);
+    }
+
+    if (okBtn) {
+        okBtn.addEventListener("click", closePremiumModal);
+    }
+
+    if (overlay) {
+        overlay.addEventListener("click", closePremiumModal);
+    }
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            closePremiumModal();
+        }
     });
 }
+
+/* =========================================================================
+PREMIUM PAYMENT
+========================================================================= */
+
+async function startPremiumPayment() {
+    console.log("Premium button clicked");
+
+    const user = auth.currentUser;
+
+    if (!user) {
+        alert("Please login first before upgrading to Premium.");
+        return;
+    }
+
+    try {
+        const idToken = await user.getIdToken(true);
+
+        const response = await fetch(
+            `${API_URL}/api/payments/premium/initialize`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${idToken}`
+                }
+            }
+        );
+
+        const data = await response.json();
+
+        console.log("Premium API response:", data);
+
+        if (!response.ok) {
+            throw new Error(
+                data.message ||
+                data.error ||
+                "Unable to initialize payment."
+            );
+        }
+
+        if (!data.authorization_url) {
+            throw new Error("Paystack checkout URL was not returned.");
+        }
+
+        window.location.href = data.authorization_url;
+    } catch (error) {
+        console.error("Premium payment error:", error);
+
+        alert(`❌ Premium payment could not start.
+
+${error.message}`);
+    }
+}
+
+/* =========================================================================
+PREMIUM BUTTON
+========================================================================= */
+
+function setupPremiumButton() {
+    const upgradeBtn = document.getElementById("upgradeBtn");
+
+    if (!upgradeBtn) {
+        console.warn("upgradeBtn was not found.");
+        return;
+    }
+
+    upgradeBtn.addEventListener("click", async () => {
+        upgradeBtn.disabled = true;
+
+        const premium = await isPremiumUser();
+
+        if (premium) {
+            openPremiumModal();
+        } else {
+            await startPremiumPayment();
+        }
+
+        upgradeBtn.disabled = false;
+    });
+}
+
+/* =========================================================================
+CBT PRACTICE
+========================================================================= */
+
+async function startPractice() {
+    const premium = await isPremiumUser();
+
+    if (premium) {
+        window.location.href = "exam.html";
+        return;
+    }
+
+    const paid = await spendCoins(10, "GST CBT Practice");
+
+    if (paid) {
+        window.location.href = "exam.html";
+    }
+}
+
+/* =========================================================================
+LEADERBOARD
+========================================================================= */
+
+async function unlockWithCoins() {
+    const premium = await isPremiumUser();
+
+    if (premium) {
+        localStorage.setItem("leaderboardAccess", "true");
+
+        alert("💎 Premium Leaderboard Access Activated!");
+
+        location.reload();
+        return;
+    }
+
+    const paid = await spendCoins(50, "Leaderboard Access");
+
+    if (paid) {
+        localStorage.setItem("leaderboardAccess", "true");
+
+        alert("🏆 Leaderboard Activated!");
+
+        location.reload();
+    }
+}
+
+/* =========================================================================
+PREMIUM UNLOCK
+========================================================================= */
+
+async function premiumUnlock() {
+    const premium = await isPremiumUser();
+
+    if (premium) {
+        openPremiumModal();
+        return;
+    }
+
+    await startPremiumPayment();
+}
+
+/* =========================================================================
+MORE PAGE CARDS
+========================================================================= */
+
+function setupMorePageCards() {
+    // Top Referrals
+    const topReferralsBtn = document.getElementById("top-referrals-btn");
+
+    if (topReferralsBtn) {
+        topReferralsBtn.addEventListener("click", () => {
+            window.location.href = "top-referrals.html";
+        });
+    }
+
+    // My Referrals
+    const myReferralsBtn = document.getElementById("my-referrals-btn");
+
+    if (myReferralsBtn) {
+        myReferralsBtn.addEventListener("click", () => {
+            window.location.href = "marketer-dashboard.html";
+        });
+    }
+
+    // Bookmarks
+    const bookmarksBtn = document.getElementById("bookmarks-btn");
+
+    if (bookmarksBtn) {
+        bookmarksBtn.addEventListener("click", () => {
+            window.location.href = "bookmarks.html";
+        });
+    }
+
+    // Share FundsIQ
+    const shareBtn = document.getElementById("share-app-btn");
+
+    if (shareBtn) {
+        shareBtn.addEventListener("click", async () => {
+            const shareData = {
+                title: "FundsIQ",
+                text: "Study smart and score higher with FundsIQ!",
+                url: "https://fundsiq.com.ng"
+            };
+
+            try {
+                if (navigator.share) {
+                    await navigator.share(shareData);
+                } else if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(shareData.url);
+                    alert("FundsIQ link copied. You can now share it!");
+                } else {
+                    window.prompt("Copy this FundsIQ link:", shareData.url);
+                }
+            } catch (error) {
+                if (error.name !== "AbortError") {
+                    console.error("Share error:", error);
+                    window.prompt("Copy this FundsIQ link:", shareData.url);
+                }
+            }
+        });
+    }
+}
+
+/* =========================================================================
+AUTH STATE
+========================================================================= */
+
+onAuthStateChanged(auth, async (user) => {
+    const status = document.getElementById("premiumStatus");
+
+    if (!user) {
+        if (status) {
+            status.innerText = "Free Account";
+        }
+
+        document.body.classList.remove("is-premium");
+        return;
+    }
+
+    // Show a useful state while account information loads.
+    if (status) {
+        status.innerText = "Loading your account...";
+    }
+
+    await updateCoinDisplay();
+    await updatePremiumDisplay();
+});
+
+/* =========================================================================
+PAGE LOAD
+========================================================================= */
+
+document.addEventListener("DOMContentLoaded", () => {
+    setupPremiumButton();
+    setupPremiumModal();
+    setupMorePageCards();
+});
+
+/* =========================================================================
+GLOBAL EXPORTS
+========================================================================= */
+
+window.startPractice = startPractice;
+window.rewardCoins = rewardCoins;
+window.spendCoins = spendCoins;
+window.updateCoinDisplay = updateCoinDisplay;
+window.unlockWithCoins = unlockWithCoins;
+window.premiumUnlock = premiumUnlock;
+window.isPremiumUser = isPremiumUser;
+window.updatePremiumDisplay = updatePremiumDisplay;
+window.startPremiumPayment = startPremiumPayment;
+window.openPremiumModal = openPremiumModal;
+window.closePremiumModal = closePremiumModal;
