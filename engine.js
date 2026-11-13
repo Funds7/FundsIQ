@@ -9,6 +9,12 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
+import {
+    showModal,
+    showConfirmModal,
+    showInputModal
+} from "./modals.js";
+
 // ==========================================
 // COIN SYSTEM
 // ==========================================
@@ -16,11 +22,19 @@ import {
 async function payForExam() {
 
     if (typeof window.spendCoins !== "function") {
-        alert("Coin system is not ready. Please refresh and try again.");
+
+        await showModal({
+            type: "error",
+            title: "Coin System Unavailable",
+            message: "The coin system is not ready.",
+            details: "Please refresh FundsIQ and try again."
+        });
+
         return false;
     }
 
     try {
+
         const paid = await window.spendCoins(
             10,
             `${selectedMode} Attempt`
@@ -32,10 +46,12 @@ async function payForExam() {
 
         console.error("FundsIQ payment error:", error);
 
-        alert(
-            "We couldn't verify your coin balance. " +
-            "Check your internet connection and try again."
-        );
+        await showModal({
+            type: "error",
+            title: "Balance Verification Failed",
+            message: "We couldn't verify your coin balance.",
+            details: "Check your internet connection and try again."
+        });
 
         return false;
     }
@@ -128,7 +144,7 @@ function initPage() {
 
     gridButtons.forEach(btn => {
 
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", async () => {
 
             gridButtons.forEach(b => {
 
@@ -146,12 +162,20 @@ function initPage() {
 
             if (rawVal === "CUSTOM") {
 
-                const customVal = prompt(
-                    "Enter custom number of questions:"
-                );
+                const customVal = await showInputModal({
+                    type: "info",
+                    title: "Custom Question Count",
+                    message: "How many questions would you like to practice?",
+                    placeholder: "Enter number of questions",
+                    inputType: "number",
+                    defaultValue: String(selectedQuestionsCount),
+                    min: 1,
+                    submitText: "Set Questions"
+                });
 
                 if (
-                    customVal &&
+                    customVal !== null &&
+                    customVal.trim() !== "" &&
                     !isNaN(customVal) &&
                     parseInt(customVal, 10) > 0
                 ) {
@@ -168,12 +192,19 @@ function initPage() {
 
                     if (defaultBtn) {
 
+                        gridButtons.forEach(b => {
+
+                            b.classList.remove("active");
+
+                            const check = b.querySelector(".check-mark");
+
+                            if (check) check.remove();
+                        });
+
                         defaultBtn.classList.add("active");
 
-                        if (!defaultBtn.querySelector(".check-mark")) {
-                            defaultBtn.innerHTML +=
-                                ' <span class="check-mark">✓</span>';
-                        }
+                        defaultBtn.innerHTML =
+                            '50 <span class="check-mark">✓</span>';
                     }
 
                     selectedQuestionsCount = 50;
@@ -256,8 +287,6 @@ async function startExam() {
 
     try {
 
-        // Check question database
-
         if (
             typeof QUESTIONS === "undefined" ||
             !Array.isArray(QUESTIONS)
@@ -267,8 +296,6 @@ async function startExam() {
                 "Questions could not load. Please refresh the page."
             );
         }
-
-        // Resolve selected course
 
         selectedCourse = getSelectedCourse();
 
@@ -282,8 +309,6 @@ async function startExam() {
         const params = new URLSearchParams(window.location.search);
 
         const chapter = params.get("chapter");
-
-        // Validate duration before payment
 
         const hrs = parseInt(
             document.getElementById("time-hours")?.value,
@@ -303,8 +328,6 @@ async function startExam() {
                 "Please select a valid exam duration."
             );
         }
-
-        // Filter valid questions for selected course
 
         let matchedQuestions = QUESTIONS.filter(q => {
 
@@ -348,8 +371,6 @@ async function startExam() {
             );
         }
 
-        // Normalize answer values
-
         matchedQuestions = matchedQuestions.map(q => ({
             ...q,
             answer: Number(q.answer)
@@ -373,8 +394,6 @@ async function startExam() {
                 matchedQuestions[i]
             ];
         }
-
-        // Select question count
 
         const count = Math.max(
             1,
@@ -405,15 +424,11 @@ async function startExam() {
 
         examStartTime = Date.now();
 
-        // Update mode label
-
         const modeEl = document.getElementById("mode");
 
         if (modeEl) {
             modeEl.innerText = selectedMode + " Mode";
         }
-
-        // Show exam screen
 
         const setupScreen = document.getElementById("setup-screen");
 
@@ -430,8 +445,6 @@ async function startExam() {
 
         examScreen.style.display = "block";
 
-        // Timer
-
         if (selectedMode === "Exam") {
 
             startTimer();
@@ -445,8 +458,6 @@ async function startExam() {
             }
         }
 
-        // Load first question
-
         loadQuestion();
 
     } catch (error) {
@@ -456,10 +467,13 @@ async function startExam() {
             error
         );
 
-        alert(
-            error.message ||
-            "Unable to start. Please refresh and try again."
-        );
+        await showModal({
+            type: "error",
+            title: "Unable to Start Exam",
+            message: error.message ||
+                "Unable to start your examination.",
+            details: "Please check your selection and try again."
+        });
 
     } finally {
 
@@ -808,7 +822,16 @@ async function finishExam(autoSubmit = false) {
 
     if (!autoSubmit) {
 
-        if (!confirm("Are you sure you want to submit your exam?")) {
+        const confirmed = await showConfirmModal({
+            type: "warning",
+            title: "Submit Examination?",
+            message: "Are you sure you want to submit your exam?",
+            details: "You won't be able to change your answers after submission.",
+            confirmText: "Yes, Submit",
+            cancelText: "Keep Practicing"
+        });
+
+        if (confirmed !== true) {
             return;
         }
     }
@@ -1153,17 +1176,22 @@ async function finishExam(autoSubmit = false) {
                 dbError
             );
 
-            alert(
-                "Your exam was submitted, but some online statistics " +
-                "could not be synchronized. Your local result is saved."
-            );
+            await showModal({
+                type: "warning",
+                title: "Results Saved",
+                message: "Your exam was submitted successfully.",
+                details: "Some online statistics could not be synchronized, but your local result is saved."
+            });
         }
 
     } else {
 
-        alert(
-            "Submitted offline. Please log in to synchronize your score metrics."
-        );
+        await showModal({
+            type: "info",
+            title: "Exam Saved Offline",
+            message: "Your examination has been submitted.",
+            details: "Please log in when you're online to synchronize your score metrics."
+        });
 
         // Local offline history
 
