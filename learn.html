@@ -36,7 +36,26 @@
 
 <script>
 
-// Supports BOTH old and new storage names
+// =====================================
+// FUNDSIQ MODAL SYSTEM
+// =====================================
+
+let modalModulePromise = null;
+
+function getModals() {
+
+    if (!modalModulePromise) {
+        modalModulePromise = import("./modals.js");
+    }
+
+    return modalModulePromise;
+}
+
+
+// =====================================
+// COURSE INFORMATION
+// =====================================
+
 const course =
     localStorage.getItem("course") ||
     localStorage.getItem("gstCourse");
@@ -47,7 +66,6 @@ const chapter =
 
 const chapterKey = "chapter" + chapter;
 
-// Bookmark storage key
 const bookmarkKey = "fundsiq_bookmarks";
 
 console.log("Course:", course);
@@ -55,7 +73,10 @@ console.log("Chapter:", chapter);
 console.log("Key:", chapterKey);
 
 
-// Get saved bookmarks
+// =====================================
+// GET SAVED BOOKMARKS
+// =====================================
+
 function getBookmarks() {
 
     try {
@@ -73,7 +94,10 @@ function getBookmarks() {
 }
 
 
-// Save bookmarks
+// =====================================
+// SAVE BOOKMARKS
+// =====================================
+
 function saveBookmarks(bookmarks) {
 
     localStorage.setItem(
@@ -84,7 +108,10 @@ function saveBookmarks(bookmarks) {
 }
 
 
-// Check if a point is bookmarked
+// =====================================
+// CHECK BOOKMARK STATUS
+// =====================================
+
 function isBookmarked(pointId) {
 
     return getBookmarks().some(
@@ -94,8 +121,11 @@ function isBookmarked(pointId) {
 }
 
 
-// Toggle bookmark
-function toggleBookmark(pointId, button) {
+// =====================================
+// TOGGLE BOOKMARK
+// =====================================
+
+async function toggleBookmark(pointId, button) {
 
     let bookmarks = getBookmarks();
 
@@ -103,41 +133,71 @@ function toggleBookmark(pointId, button) {
         bookmark => bookmark.id === pointId
     );
 
+    const { showModal } = await getModals();
+
     if (existingIndex !== -1) {
 
-        // Remove bookmark
+        // REMOVE BOOKMARK
+
         bookmarks.splice(existingIndex, 1);
 
         button.innerHTML = "🔖 Bookmark";
 
-        alert("Bookmark removed.");
+        saveBookmarks(bookmarks);
+
+        await showModal({
+            type: "info",
+            title: "Bookmark Removed",
+            message: "This study point has been removed from your bookmarks.",
+            buttonText: "Continue"
+        });
 
     } else {
 
-        // Save bookmark
+        // SAVE BOOKMARK
+
+        const point = document.getElementById(
+            "point-" + pointId
+        );
+
+        if (!point) return;
+
         bookmarks.push({
+
             id: pointId,
+
             course: course,
+
             chapter: chapter,
+
             point: pointId.split("-").pop(),
-            content: document.getElementById(
-                "point-" + pointId
-            ).innerText,
+
+            content: point.innerText,
+
             savedAt: new Date().toISOString()
+
         });
 
         button.innerHTML = "✅ Bookmarked";
 
-        alert("Point bookmarked successfully!");
+        saveBookmarks(bookmarks);
+
+        await showModal({
+            type: "success",
+            title: "Bookmark Saved",
+            message: "This study point has been added to your bookmarks.",
+            buttonText: "Continue"
+        });
 
     }
-
-    saveBookmarks(bookmarks);
 
 }
 
 
-// Share individual point
+// =====================================
+// SHARE INDIVIDUAL POINT
+// =====================================
+
 async function sharePoint(pointId) {
 
     const point = document.getElementById(
@@ -156,14 +216,18 @@ async function sharePoint(pointId) {
         "\n\nLearn • Practice • Pass";
 
 
-    // Use phone's native share menu
+    // NATIVE SHARE MENU
+
     if (navigator.share) {
 
         try {
 
             await navigator.share({
+
                 title: "FundsIQ Study Notes",
+
                 text: shareText
+
             });
 
         } catch (error) {
@@ -174,19 +238,31 @@ async function sharePoint(pointId) {
 
     } else {
 
-        // Fallback: Copy to clipboard
+        // CLIPBOARD FALLBACK
+
+        const { showModal } = await getModals();
+
         try {
 
             await navigator.clipboard.writeText(shareText);
 
-            alert("Point copied! You can now share it.");
+            await showModal({
+                type: "success",
+                title: "Copied Successfully",
+                message: "This study point has been copied. You can now share it with your friends.",
+                buttonText: "Continue"
+            });
 
         } catch (error) {
 
-            alert(
-                "Your browser does not support sharing. " +
-                "Please copy the point manually."
-            );
+            console.error("Copy error:", error);
+
+            await showModal({
+                type: "error",
+                title: "Unable to Copy",
+                message: "Your browser could not copy this study point. Please try again.",
+                buttonText: "Continue"
+            });
 
         }
 
@@ -195,8 +271,14 @@ async function sharePoint(pointId) {
 }
 
 
-// Report a point
-function reportPoint(pointId) {
+// =====================================
+// REPORT A STUDY POINT
+// =====================================
+
+async function reportPoint(pointId) {
+
+    const { showInputModal, showModal } =
+        await getModals();
 
     const point = document.getElementById(
         "point-" + pointId
@@ -206,17 +288,53 @@ function reportPoint(pointId) {
 
     const pointNumber = pointId.split("-").pop();
 
-    const reason = prompt(
-        "Why are you reporting this point?\n\n" +
-        "Example: Incorrect information, spelling error, " +
-        "or missing explanation."
-    );
 
-    if (!reason || !reason.trim()) {
+    // ASK FOR REPORT REASON
+
+    const reason = await showInputModal({
+
+        type: "warning",
+
+        title: "Report Study Note",
+
+        message: "Help us improve FundsIQ by telling us what is wrong with this note.",
+
+        details: "Examples: Incorrect information, spelling error or missing explanation.",
+
+        placeholder: "Describe the issue...",
+
+        maxLength: 500,
+
+        submitText: "Submit Report",
+
+        cancelText: "Cancel"
+
+    });
+
+
+    if (reason === null) return;
+
+
+    if (!reason.trim()) {
+
+        await showModal({
+
+            type: "warning",
+
+            title: "Reason Required",
+
+            message: "Please explain why you are reporting this study note.",
+
+            buttonText: "Continue"
+
+        });
 
         return;
 
     }
+
+
+    // PREPARE REPORT
 
     const subject =
         "FundsIQ Note Report - " +
@@ -232,7 +350,8 @@ function reportPoint(pointId) {
         "\n\nReason for Report:\n" + reason;
 
 
-    // Opens the student's email application
+    // OPEN EMAIL APPLICATION
+
     const email =
         "mailto:fundsiq@gmail.com" +
         "?subject=" + encodeURIComponent(subject) +
@@ -243,7 +362,10 @@ function reportPoint(pointId) {
 }
 
 
-// Load notes
+// =====================================
+// LOAD STUDY NOTES
+// =====================================
+
 if (
     typeof CONTENT !== "undefined" &&
     CONTENT[course] &&
@@ -277,10 +399,7 @@ if (
 
         <button
             class="small-btn"
-            onclick="toggleBookmark(
-                '${pointId}',
-                this
-            )">
+            onclick="toggleBookmark('${pointId}', this)">
 
             ${bookmarked ? "✅ Bookmarked" : "🔖 Bookmark"}
 
@@ -345,7 +464,10 @@ if (
 }
 
 
-// Start chapter test
+// =====================================
+// START CHAPTER TEST
+// =====================================
+
 function startTest() {
 
     window.location.href =
