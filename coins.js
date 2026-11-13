@@ -45,6 +45,39 @@ async function getCoins() {
 
 
 // ==========================================
+// CHECK PREMIUM STATUS
+// ==========================================
+
+async function isPremiumUser() {
+
+    const user = auth.currentUser;
+
+    if (!user) return false;
+
+    try {
+
+        const userRef = doc(db, "users", user.uid);
+        const snap = await getDoc(userRef);
+
+        if (!snap.exists()) return false;
+
+        const userData = snap.data();
+
+        return (
+            userData.premium === true ||
+            userData.premium === "true"
+        );
+
+    } catch (error) {
+
+        console.error("Premium verification error:", error);
+
+        return false;
+    }
+}
+
+
+// ==========================================
 // UPDATE COIN DISPLAY
 // ==========================================
 
@@ -103,37 +136,66 @@ async function spendCoins(amount, reason = "Purchase") {
 
     try {
 
-        const result = await runTransaction(db, async (transaction) => {
+        const result = await runTransaction(
+            db,
+            async (transaction) => {
 
-            const snap = await transaction.get(userRef);
+                const snap = await transaction.get(userRef);
 
-            if (!snap.exists()) {
+                if (!snap.exists()) {
+
+                    return {
+                        success: false,
+                        message: "Your user profile could not be found."
+                    };
+                }
+
+                const userData = snap.data();
+
+                // PREMIUM USERS DO NOT PAY COINS
+
+                const isPremium =
+                    userData.premium === true ||
+                    userData.premium === "true";
+
+                if (isPremium) {
+
+                    return {
+                        success: true,
+                        premium: true
+                    };
+                }
+
+                // FREE USER COIN CHECK
+
+                const currentCoins = Number(
+                    userData.coins ?? 0
+                );
+
+                if (
+                    !Number.isFinite(currentCoins) ||
+                    currentCoins < amount
+                ) {
+
+                    return {
+                        success: false,
+                        message: `You need ${amount} coins, but your current balance is ${currentCoins} coins.`
+                    };
+                }
+
+                // DEDUCT COINS
+
+                transaction.update(userRef, {
+                    coins: increment(-amount)
+                });
 
                 return {
-                    success: false,
-                    message: "Your user profile could not be found."
+                    success: true,
+                    premium: false
                 };
+
             }
-
-            const currentCoins = Number(snap.data().coins ?? 0);
-
-            if (!Number.isFinite(currentCoins) || currentCoins < amount) {
-
-                return {
-                    success: false,
-                    message: `You need ${amount} coins, but your current balance is ${currentCoins} coins.`
-                };
-            }
-
-            transaction.update(userRef, {
-                coins: increment(-amount)
-            });
-
-            return {
-                success: true
-            };
-
-        });
+        );
 
         if (!result.success) {
 
@@ -151,7 +213,18 @@ async function spendCoins(amount, reason = "Purchase") {
             console.error("Coin display refresh error:", error);
         });
 
-        console.log(`${amount} coins spent: ${reason}`);
+        if (result.premium) {
+
+            console.log(
+                `Premium access granted without coin deduction: ${reason}`
+            );
+
+        } else {
+
+            console.log(
+                `${amount} coins spent: ${reason}`
+            );
+        }
 
         return true;
 
@@ -284,6 +357,19 @@ async function unlockWithCoins() {
 
 async function premiumUnlock() {
 
+    const premium = await isPremiumUser();
+
+    if (premium) {
+
+        await showModal({
+            type: "success",
+            title: "Premium Active",
+            message: "Your Premium account is already active."
+        });
+
+        return;
+    }
+
     await showModal({
         type: "info",
         title: "Premium Leaderboard",
@@ -318,7 +404,3 @@ window.rewardCoins = rewardCoins;
 window.spendCoins = spendCoins;
 
 window.updateCoinDisplay = updateCoinDisplay;
-
-window.unlockWithCoins = unlockWithCoins;
-
-window.premiumUnlock = premiumUnlock;
