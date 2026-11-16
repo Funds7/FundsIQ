@@ -363,6 +363,11 @@ onAuthStateChanged(auth, (user) => {
 
     if (user) {
 
+        // Refresh the verified Premium cache as soon as a signed-in user opens the exam page.
+        isPremiumUser().catch(error => {
+            console.warn("Premium status refresh failed:", error);
+        });
+
         updateCoinDisplay();
     }
 });
