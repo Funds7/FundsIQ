@@ -360,7 +360,7 @@ function subscribeToMarketerData(user) {
 
                 const referralLink =
     referralCode
-        ? `${window.location.origin}/signup.html?ref=${encodeURIComponent(referralCode)}`
+        ? `${new URL("signup.html", window.location.href).href}?ref=${encodeURIComponent(referralCode)}`
         : "";
 
 
