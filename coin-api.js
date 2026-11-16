@@ -41,9 +41,15 @@ export async function spendCoinsOnServer(amount, requestReason = "") {
     }
 
     const token = await user.getIdToken();
-    const requestId = globalThis.crypto?.randomUUID
-        ? globalThis.crypto.randomUUID()
-        : `coin_${user.uid.slice(0, 8)}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const pendingKey = `fundsiq_pending_coin_spend:${user.uid}:exam_attempt`;
+    let requestId = sessionStorage.getItem(pendingKey);
+
+    if (!requestId) {
+        requestId = globalThis.crypto?.randomUUID
+            ? globalThis.crypto.randomUUID()
+            : `coin_${user.uid.slice(0, 8)}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        sessionStorage.setItem(pendingKey, requestId);
+    }
 
     const response = await fetch(`${API_URL}/api/coins/spend`, {
         method: "POST",
@@ -60,12 +66,19 @@ export async function spendCoinsOnServer(amount, requestReason = "") {
 
     const data = await response.json();
     if (!response.ok || data.success !== true) {
+        if (response.status === 402) {
+            sessionStorage.removeItem(pendingKey);
+        }
         const error = new Error(data.msg || "Coin payment failed.");
         error.status = response.status;
         error.balance = data.balance;
         error.required = data.required;
         throw error;
     }
+
+    // Keep the same request ID until a confirmed success, so a retry after a
+    // lost response cannot deduct coins twice.
+    sessionStorage.removeItem(pendingKey);
 
     const balance = Number(data.balance || 0);
     if (Number.isFinite(balance) && balance >= 0) {
