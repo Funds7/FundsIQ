@@ -3497,6 +3497,112 @@ app.get(
 
 
 // ======================================================
+// SECURE LEADERBOARD API
+// ======================================================
+
+// Only public academic score fields may be requested. Never return whole
+// user documents: they contain private account, coin, and payment data.
+const LEADERBOARD_FIELDS = new Set([
+  "totalScore",
+  "gst101Score",
+  "gst102Score",
+  "gst103Score",
+  "gst111Score",
+  "gst112Score",
+  "gst113Score",
+  "gst114Score"
+]);
+
+app.get(
+  "/api/leaderboard",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const uid = req.firebaseUser.uid;
+      const field = String(req.query.field || "totalScore");
+
+      if (!LEADERBOARD_FIELDS.has(field)) {
+        return res.status(400).json({
+          success: false,
+          msg: "Invalid leaderboard category."
+        });
+      }
+
+      const profileSnap = await db.collection("users").doc(uid).get();
+      if (!profileSnap.exists) {
+        return res.status(404).json({
+          success: false,
+          msg: "User account not found."
+        });
+      }
+
+      // Premium status is read from Firestore by the trusted server.
+      // Client-side flags and local storage are never used for authorization.
+      const isPremium = profileSnap.get("premium") === true;
+
+      const scoreSnap = await db.collection("users")
+        .orderBy(field, "desc")
+        .get();
+
+      const entries = scoreSnap.docs.map((userDoc, index) => {
+        const data = userDoc.data() || {};
+        const rawScore = Number(data[field] || 0);
+        return {
+          uid: userDoc.id,
+          rank: index + 1,
+          name: String(data.name || "Anonymous").slice(0, 80),
+          score: Number.isFinite(rawScore) ? rawScore : 0
+        };
+      });
+
+      const topThree = entries.slice(0, 3).map(entry => {
+        if (!isPremium && entry.uid === uid) {
+          return { rank: entry.rank, private: true };
+        }
+        return {
+          rank: entry.rank,
+          name: entry.name,
+          score: entry.score
+        };
+      });
+
+      const remaining = entries.slice(3);
+      const rankings = isPremium
+        ? remaining.map(({ rank, name, score }) => ({ rank, name, score }))
+        : remaining
+            .filter(entry => entry.uid !== uid)
+            .slice(0, 10)
+            .map(({ rank, name, score }) => ({ rank, name, score }));
+
+      const ownIndex = entries.findIndex(entry => entry.uid === uid);
+      const personalRank = isPremium && ownIndex !== -1
+        ? {
+            rank: entries[ownIndex].rank,
+            name: entries[ownIndex].name,
+            score: entries[ownIndex].score
+          }
+        : null;
+
+      return res.json({
+        success: true,
+        field,
+        premium: isPremium,
+        topThree,
+        rankings,
+        personalRank
+      });
+    } catch (error) {
+      console.error("Secure leaderboard error:", error);
+      return res.status(500).json({
+        success: false,
+        msg: "Unable to load leaderboard."
+      });
+    }
+  }
+);
+
+
+// ======================================================
 // SERVER START
 // ======================================================
 
