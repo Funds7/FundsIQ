@@ -553,36 +553,9 @@ function subscribeToMarketerData(user) {
                 // REPAIR FIRESTORE COUNTER
                 // =============================================================
 
-                if (
-                    correctReferralCount !==
-                    profileReferralCount
-                ) {
-
-                    try {
-
-                        await updateDoc(
-                            userRef,
-                            {
-                                totalReferrals:
-                                    correctReferralCount
-                            }
-                        );
-
-                        console.log(
-                            "FundsIQ referral counter repaired:",
-                            correctReferralCount
-                        );
-
-                    } catch (error) {
-
-                        console.error(
-                            "Could not repair totalReferrals:",
-                            error
-                        );
-
-                    }
-
-                }
+                // Referral totals are maintained by the trusted backend.
+                // The dashboard may display the greater observed count, but
+                // it must never repair financial/profile fields from the client.
 
 
                 syncUI();
