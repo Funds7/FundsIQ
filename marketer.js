@@ -1,12 +1,5 @@
-import { auth, db } from "./firebase.js";
+import { auth } from "./firebase.js";
 import { showModal } from "./modals.js";
-
-import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 "use strict";
 
@@ -197,152 +190,64 @@ if (document.readyState === "loading") {
 }
 
 
-// BECOME MARKETER
+// BECOME MARKETER — registration is performed by the trusted backend.
 
 const becomeBtn = document.getElementById("become-marketer-btn");
 
 if (becomeBtn) {
-
   becomeBtn.addEventListener("click", async () => {
-
+    const originalText = becomeBtn.textContent;
     becomeBtn.disabled = true;
     becomeBtn.textContent = "Creating Account...";
 
     try {
-
       const user = auth.currentUser;
-
-      // CHECK LOGIN
-
       if (!user) {
-
         await showModal({
           type: "warning",
           title: "Login Required",
           message: "Please log in to become a FundsIQ Marketer.",
           buttonText: "Continue"
         });
-
         return;
       }
 
-
-      const userRef = doc(db, "users", user.uid);
-
-      const userSnap = await getDoc(userRef);
-
-
-      // CHECK EXISTING MARKETER
-
-      if (
-        userSnap.exists() &&
-        userSnap.data().isMarketer === true
-      ) {
-
-        await showModal({
-          type: "info",
-          title: "Already Registered",
-          message: "You are already a FundsIQ Marketer.",
-          buttonText: "Open Dashboard"
-        });
-
-        window.location.href = "marketer-dashboard.html";
-
-        return;
-      }
-
-
-      // GENERATE REFERRAL CODE
-
-      const referralCode = generateReferralCode();
-
-      const referralLink =
-        `${window.location.origin}/signup.html?ref=${referralCode}`;
-
-
-      // CREATE REFERRAL PROFILE
-
-      await setDoc(
-        doc(db, "referralCodes", referralCode),
-        {
-          uid: user.uid,
-          referralCode,
-          referralLink,
-
-          totalReferrals: 0,
-          totalPremiumSales: 0,
-          totalCommission: 0,
-
-          clicks: 0,
-          conversions: 0,
-
-          createdAt: serverTimestamp()
-        }
-      );
-
-
-      // UPDATE USER MARKETER STATUS
-
-      await setDoc(
-        userRef,
-        {
-          isMarketer: true,
-          referralCode,
-          referralLink,
-
-          marketerBalance: 0,
-          totalEarnings: 0,
-          totalReferrals: 0,
-          premiumReferrals: 0,
-
-          marketerJoinedAt: serverTimestamp()
+      const token = await user.getIdToken();
+      const response = await fetch("https://fundsiq-api-staging.onrender.com/api/marketer/register", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json"
         },
-        {
-          merge: true
-        }
-      );
-
-
-      console.log(
-        "FundsIQ Marketer Created:",
-        referralCode
-      );
-
-
-      await showModal({
-        type: "success",
-        title: "Congratulations!",
-        message: "You are now a FundsIQ Marketer.",
-        buttonText: "Continue"
+        body: JSON.stringify({})
       });
 
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success !== true) {
+        throw new Error(data.msg || data.message || "Registration failed. Please try again.");
+      }
+
+      await showModal({
+        type: data.alreadyRegistered ? "info" : "success",
+        title: data.alreadyRegistered ? "Already Registered" : "Congratulations!",
+        message: data.alreadyRegistered
+          ? "You are already a FundsIQ Marketer."
+          : "You are now a FundsIQ Marketer.",
+        buttonText: "Open Dashboard"
+      });
 
       window.location.href = "marketer-dashboard.html";
-
-
     } catch (error) {
-
-      console.error(
-        "Marketer registration error:",
-        error
-      );
-
-
+      console.error("Marketer registration error:", error);
       await showModal({
         type: "error",
         title: "Registration Failed",
-        message: "Something went wrong while creating your marketer account. Please try again.",
+        message: error.message || "Something went wrong. Please try again.",
         buttonText: "Continue"
       });
-
-
     } finally {
-
       becomeBtn.disabled = false;
-      becomeBtn.textContent = "Become a Marketer";
-
+      becomeBtn.textContent = originalText || "Become a Marketer";
     }
-
   });
-
-  }
+}
