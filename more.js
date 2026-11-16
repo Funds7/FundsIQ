@@ -400,7 +400,7 @@ function setupMorePageCards() {
             const shareData = {
                 title: "FundsIQ",
                 text: "Study smart and score higher with FundsIQ!",
-                url: "https://fundsiq.com.ng"
+                url: window.location.origin
             };
 
             try {
