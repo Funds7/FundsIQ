@@ -3538,7 +3538,12 @@ app.post(
           const safeOrigin = allowedOrigins.has(origin)
             ? origin
             : "https://funds7.github.io";
-          const referralLink = safeOrigin + "/signup.html?ref=" + encodeURIComponent(referralCode);
+          // GitHub project Pages live under /FundsIQ/, while the custom
+          // domain is served from /. Keep generated links on the same site path.
+          const siteBasePath = safeOrigin === "https://funds7.github.io"
+            ? "/FundsIQ/"
+            : "/";
+          const referralLink = safeOrigin + siteBasePath + "signup.html?ref=" + encodeURIComponent(referralCode);
           const now = admin.firestore.FieldValue.serverTimestamp();
 
           transaction.create(codeRef, {
