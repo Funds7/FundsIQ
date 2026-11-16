@@ -1,5 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { showModal } from "./modals.js";
+import { isPremiumUser } from "./premium-access.js";
 
 import {
     onAuthStateChanged
@@ -40,39 +41,6 @@ async function getCoins() {
         console.error("Get coins error:", error);
 
         return 0;
-    }
-}
-
-
-// ==========================================
-// CHECK PREMIUM STATUS
-// ==========================================
-
-async function isPremiumUser() {
-
-    const user = auth.currentUser;
-
-    if (!user) return false;
-
-    try {
-
-        const userRef = doc(db, "users", user.uid);
-        const snap = await getDoc(userRef);
-
-        if (!snap.exists()) return false;
-
-        const userData = snap.data();
-
-        return (
-            userData.premium === true ||
-            userData.premium === "true"
-        );
-
-    } catch (error) {
-
-        console.error("Premium verification error:", error);
-
-        return false;
     }
 }
 
