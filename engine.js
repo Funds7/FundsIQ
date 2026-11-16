@@ -1190,6 +1190,29 @@ async function finishExam(autoSubmit = false) {
                 completedAt: serverTimestamp()
             }, { merge: true });
 
+            // Keep the existing online profile statistics behavior.
+            const userRef = doc(db, "users", user.uid);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const data = userSnap.data();
+                const courseField = selectedCourse + "Score";
+                const totalScoreAccumulated = (data.totalScore || 0) + correctAnswers;
+                const newCompletedTests = (data.completedTests || 0) + 1;
+                const oldAverage = data.averageScore || 0;
+                const newAverage = Number((
+                    (oldAverage * (newCompletedTests - 1) + percentage) /
+                    newCompletedTests
+                ).toFixed(1));
+                await updateDoc(userRef, {
+                    completedTests: newCompletedTests,
+                    totalScore: totalScoreAccumulated,
+                    [courseField]: (data[courseField] || 0) + correctAnswers,
+                    averageScore: newAverage,
+                    bestScore: Math.max(data.bestScore || 0, percentage),
+                    level: Math.floor(totalScoreAccumulated / 100) + 1
+                });
+            }
+
             const queueKey = "fundsiq_pending_exam_results_v1:" + user.uid;
             const pending = JSON.parse(localStorage.getItem(queueKey) || "[]");
             localStorage.setItem(queueKey, JSON.stringify(
