@@ -93,13 +93,21 @@ const MINIMUM_WITHDRAWAL_NAIRA =
   2000;
 
 const FRONTEND_URL =
+  process.env.FRONTEND_URL ||
   "https://funds7.github.io/FundsIQ/";
 
+const API_BASE_URL =
+  process.env.API_BASE_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  "https://fundsiq-api.onrender.com";
+
 const PAYSTACK_CALLBACK_URL =
-  "https://fundsiq-api.onrender.com/api/payments/paystack/callback";
+  process.env.PAYSTACK_CALLBACK_URL ||
+  API_BASE_URL.replace(/\/+$/, "") + "/api/payments/paystack/callback";
 
 const PAYSTACK_WEBHOOK_URL =
-  "https://fundsiq-api.onrender.com/api/payments/paystack/webhook";
+  process.env.PAYSTACK_WEBHOOK_URL ||
+  API_BASE_URL.replace(/\/+$/, "") + "/api/payments/paystack/webhook";
 
 
 // ======================================================
@@ -159,7 +167,7 @@ app.get(
         ),
 
       webhook:
-        PAYSTACK_WEBHOOK_URL,
+        PAYSTACK_SECRET_KEY ? PAYSTACK_WEBHOOK_URL : null,
 
       premiumPrice:
         PREMIUM_PRICE_NAIRA,
@@ -437,6 +445,127 @@ app.post(
 
 
 // ======================================================
+// CREATE STUDENT PROFILE AND ISSUE SIGNUP / REFERRAL COINS
+// ======================================================
+
+app.post(
+  "/api/auth/profile/initialize",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const uid = req.firebaseUser.uid;
+      const email = String(req.firebaseUser.email || "").trim().toLowerCase();
+      const name = String(req.body?.name || "").trim().slice(0, 80);
+      const submittedReferralCode = String(req.body?.referralCode || "")
+        .trim()
+        .toUpperCase()
+        .slice(0, 32);
+
+      if (!email || !name) {
+        return res.status(400).json({
+          success: false,
+          msg: "A valid account email and student name are required."
+        });
+      }
+
+      const newUserRef = db.collection("users").doc(uid);
+      const existingProfile = await newUserRef.get();
+
+      if (existingProfile.exists) {
+        return res.json({
+          success: true,
+          alreadyInitialized: true,
+          referralApplied: false
+        });
+      }
+
+      let referrerRef = null;
+      let validReferralCode = "";
+
+      if (submittedReferralCode) {
+        const referralQuery = await db.collection("users")
+          .where("referralCode", "==", submittedReferralCode)
+          .limit(1)
+          .get();
+
+        if (!referralQuery.empty && referralQuery.docs[0].id !== uid) {
+          referrerRef = referralQuery.docs[0].ref;
+          validReferralCode = submittedReferralCode;
+        }
+      }
+
+      const activityRef = referrerRef
+        ? referrerRef.collection("referrals").doc()
+        : null;
+
+      const result = await db.runTransaction(async transaction => {
+        const freshUser = await transaction.get(newUserRef);
+        if (freshUser.exists) {
+          return { alreadyInitialized: true, referralApplied: false };
+        }
+
+        let referrerExists = false;
+        if (referrerRef) {
+          const referrerSnap = await transaction.get(referrerRef);
+          referrerExists = referrerSnap.exists;
+        }
+
+        transaction.create(newUserRef, {
+          uid,
+          name,
+          email,
+          coins: 20,
+          role: "student",
+          completedTests: 0,
+          totalScore: 0,
+          studyStreak: 0,
+          totalReferrals: 0,
+          referredBy: referrerExists ? validReferralCode : "",
+          totalEarnings: 0,
+          commissionBalance: 0,
+          premiumReferrals: 0,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        if (referrerExists && referrerRef && activityRef) {
+          transaction.update(referrerRef, {
+            coins: admin.firestore.FieldValue.increment(10),
+            totalReferrals: admin.firestore.FieldValue.increment(1)
+          });
+
+          transaction.create(activityRef, {
+            friendName: name,
+            value: "+10 🪙",
+            type: "coin_referral",
+            referredUserId: uid,
+            referralCode: validReferralCode,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
+        return {
+          alreadyInitialized: false,
+          referralApplied: Boolean(referrerExists)
+        };
+      });
+
+      return res.json({
+        success: true,
+        alreadyInitialized: result.alreadyInitialized,
+        referralApplied: result.referralApplied
+      });
+    } catch (error) {
+      console.error("Student profile initialization error:", error);
+      return res.status(500).json({
+        success: false,
+        msg: "Unable to initialize your FundsIQ profile."
+      });
+    }
+  }
+);
+
+
+// ======================================================
 // PREMIUM STATUS
 // ======================================================
 
@@ -491,6 +620,147 @@ app.get(
 
     }
 
+  }
+);
+
+
+// ======================================================
+// SECURE COIN BALANCE AND SPENDING
+// ======================================================
+
+// Only server-defined actions are accepted. Never trust a price or reward
+// amount supplied by the browser.
+const COIN_ACTIONS = Object.freeze({
+  exam_attempt: 10
+});
+
+app.get(
+  "/api/coins/balance",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const uid = req.firebaseUser.uid;
+      const userSnap = await db.collection("users").doc(uid).get();
+
+      if (!userSnap.exists) {
+        return res.status(404).json({ success: false, msg: "User account not found." });
+      }
+
+      const userData = userSnap.data() || {};
+      const balance = Number(userData.coins || 0);
+
+      return res.json({
+        success: true,
+        balance: Number.isFinite(balance) && balance >= 0 ? balance : 0,
+        premium: userData.premium === true
+      });
+    } catch (error) {
+      console.error("Coin balance error:", error);
+      return res.status(500).json({ success: false, msg: "Unable to load coin balance." });
+    }
+  }
+);
+
+app.post(
+  "/api/coins/spend",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const uid = req.firebaseUser.uid;
+      const action = String(req.body?.action || "");
+      const requestId = String(req.body?.requestId || "");
+
+      if (!Object.prototype.hasOwnProperty.call(COIN_ACTIONS, action)) {
+        return res.status(400).json({ success: false, msg: "Invalid coin purchase action." });
+      }
+
+      if (!/^[A-Za-z0-9_-]{12,100}$/.test(requestId)) {
+        return res.status(400).json({ success: false, msg: "A valid transaction request ID is required." });
+      }
+
+      const cost = COIN_ACTIONS[action];
+      const userRef = db.collection("users").doc(uid);
+      const transactionRef = db.collection("coinTransactions").doc(uid + "_" + requestId);
+
+      const result = await db.runTransaction(async transaction => {
+        const [userSnap, transactionSnap] = await Promise.all([
+          transaction.get(userRef),
+          transaction.get(transactionRef)
+        ]);
+
+        if (!userSnap.exists) {
+          return { success: false, status: 404, msg: "User account not found." };
+        }
+
+        const userData = userSnap.data() || {};
+
+        if (transactionSnap.exists) {
+          const previous = transactionSnap.data() || {};
+          if (previous.uid !== uid || previous.action !== action) {
+            return { success: false, status: 409, msg: "Transaction request ID has already been used." };
+          }
+          return {
+            success: true,
+            duplicate: true,
+            premium: previous.premium === true,
+            balance: Number(userData.coins || 0)
+          };
+        }
+
+        if (userData.premium === true) {
+          transaction.create(transactionRef, {
+            uid,
+            action,
+            premium: true,
+            amount: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          return {
+            success: true,
+            premium: true,
+            balance: Number(userData.coins || 0)
+          };
+        }
+
+        const currentBalance = Number(userData.coins || 0);
+        if (!Number.isFinite(currentBalance) || currentBalance < cost) {
+          return {
+            success: false,
+            status: 402,
+            msg: "Insufficient coins.",
+            required: cost,
+            balance: Number.isFinite(currentBalance) ? currentBalance : 0
+          };
+        }
+
+        const newBalance = currentBalance - cost;
+        transaction.update(userRef, { coins: newBalance });
+        transaction.create(transactionRef, {
+          uid,
+          action,
+          premium: false,
+          amount: cost,
+          balanceAfter: newBalance,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        return {
+          success: true,
+          premium: false,
+          balance: newBalance
+        };
+      });
+
+      if (!result.success) {
+        return res.status(result.status || 400).json(result);
+      }
+
+      return res.json(result);
+    } catch (error) {
+      console.error("Coin spending error:", error);
+      return res.status(500).json({ success: false, msg: "Unable to complete coin payment." });
+    }
   }
 );
 
@@ -3230,6 +3500,210 @@ app.get(
       results
     );
 
+  }
+);
+
+
+// ======================================================
+// SECURE MARKETER REGISTRATION
+// ======================================================
+
+app.post(
+  "/api/marketer/register",
+  verifyFirebaseToken,
+  async (req, res) => {
+    const uid = req.firebaseUser.uid;
+    const userRef = db.collection("users").doc(uid);
+
+    try {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const referralCode = "FUNDS-" + crypto.randomBytes(4).toString("hex").toUpperCase();
+        const codeRef = db.collection("referralCodes").doc(referralCode);
+        const result = await db.runTransaction(async transaction => {
+          const userSnap = await transaction.get(userRef);
+          if (!userSnap.exists) {
+            return { error: "User profile not found. Please refresh your account and try again." };
+          }
+
+          const userData = userSnap.data() || {};
+          if (userData.isMarketer === true && userData.referralCode) {
+            return {
+              alreadyRegistered: true,
+              referralCode: String(userData.referralCode),
+              referralLink: String(userData.referralLink || "")
+            };
+          }
+
+          const codeSnap = await transaction.get(codeRef);
+          if (codeSnap.exists) return { collision: true };
+
+          const origin = String(req.headers.origin || "").replace(/\/$/, "");
+          const allowedOrigins = new Set([
+            "https://funds7.github.io",
+            "https://fundsiq.com.ng",
+            "https://www.fundsiq.com.ng"
+          ]);
+          const safeOrigin = allowedOrigins.has(origin)
+            ? origin
+            : "https://funds7.github.io";
+          // GitHub project Pages live under /FundsIQ/, while the custom
+          // domain is served from /. Keep generated links on the same site path.
+          const siteBasePath = safeOrigin === "https://funds7.github.io"
+            ? "/FundsIQ/"
+            : "/";
+          const referralLink = safeOrigin + siteBasePath + "signup.html?ref=" + encodeURIComponent(referralCode);
+          const now = admin.firestore.FieldValue.serverTimestamp();
+
+          transaction.create(codeRef, {
+            uid,
+            referralCode,
+            referralLink,
+            totalReferrals: 0,
+            totalPremiumSales: 0,
+            totalCommission: 0,
+            clicks: 0,
+            conversions: 0,
+            createdAt: now
+          });
+
+          transaction.set(userRef, {
+            isMarketer: true,
+            referralCode,
+            referralLink,
+            marketerBalance: 0,
+            totalEarnings: 0,
+            totalReferrals: 0,
+            premiumReferrals: 0,
+            marketerJoinedAt: now
+          }, { merge: true });
+
+          return { alreadyRegistered: false, referralCode, referralLink };
+        });
+
+        if (result.collision) continue;
+        if (result.error) {
+          return res.status(404).json({ success: false, msg: result.error });
+        }
+        return res.json({ success: true, ...result });
+      }
+
+      return res.status(503).json({
+        success: false,
+        msg: "Could not generate a unique referral code. Please try again."
+      });
+    } catch (error) {
+      console.error("Secure marketer registration error:", error);
+      return res.status(500).json({
+        success: false,
+        msg: "Marketer registration failed. Please try again."
+      });
+    }
+  }
+);
+
+
+// ======================================================
+// SECURE LEADERBOARD API
+// ======================================================
+
+// Only public academic score fields may be requested. Never return whole
+// user documents: they contain private account, coin, and payment data.
+const LEADERBOARD_FIELDS = new Set([
+  "totalScore",
+  "gst101Score",
+  "gst102Score",
+  "gst103Score",
+  "gst111Score",
+  "gst112Score",
+  "gst113Score",
+  "gst114Score"
+]);
+
+app.get(
+  "/api/leaderboard",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const uid = req.firebaseUser.uid;
+      const field = String(req.query.field || "totalScore");
+
+      if (!LEADERBOARD_FIELDS.has(field)) {
+        return res.status(400).json({
+          success: false,
+          msg: "Invalid leaderboard category."
+        });
+      }
+
+      const profileSnap = await db.collection("users").doc(uid).get();
+      if (!profileSnap.exists) {
+        return res.status(404).json({
+          success: false,
+          msg: "User account not found."
+        });
+      }
+
+      // Premium status is read from Firestore by the trusted server.
+      // Client-side flags and local storage are never used for authorization.
+      const isPremium = profileSnap.get("premium") === true;
+
+      const scoreSnap = await db.collection("users")
+        .orderBy(field, "desc")
+        .get();
+
+      const entries = scoreSnap.docs.map((userDoc, index) => {
+        const data = userDoc.data() || {};
+        const rawScore = Number(data[field] || 0);
+        return {
+          uid: userDoc.id,
+          rank: index + 1,
+          name: String(data.name || "Anonymous").slice(0, 80),
+          score: Number.isFinite(rawScore) ? rawScore : 0
+        };
+      });
+
+      const topThree = entries.slice(0, 3).map(entry => {
+        if (!isPremium && entry.uid === uid) {
+          return { rank: entry.rank, private: true };
+        }
+        return {
+          rank: entry.rank,
+          name: entry.name,
+          score: entry.score
+        };
+      });
+
+      const remaining = entries.slice(3);
+      const rankings = isPremium
+        ? remaining.map(({ rank, name, score }) => ({ rank, name, score }))
+        : remaining
+            .filter(entry => entry.uid !== uid)
+            .slice(0, 10)
+            .map(({ rank, name, score }) => ({ rank, name, score }));
+
+      const ownIndex = entries.findIndex(entry => entry.uid === uid);
+      const personalRank = isPremium && ownIndex !== -1
+        ? {
+            rank: entries[ownIndex].rank,
+            name: entries[ownIndex].name,
+            score: entries[ownIndex].score
+          }
+        : null;
+
+      return res.json({
+        success: true,
+        field,
+        premium: isPremium,
+        topThree,
+        rankings,
+        personalRank
+      });
+    } catch (error) {
+      console.error("Secure leaderboard error:", error);
+      return res.status(500).json({
+        success: false,
+        msg: "Unable to load leaderboard."
+      });
+    }
   }
 );
 

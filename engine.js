@@ -5,9 +5,11 @@ import {
     getDoc,
     updateDoc,
     collection,
-    addDoc,
+    setDoc,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
 import {
     showModal,
@@ -84,10 +86,156 @@ let timeLeft = 0;
 
 let isSubmitting = false;
 let examStartTime = 0;
+let examSessionId = "";
 
 let selectedCourse = "";
 let selectedQuestionsCount = 50;
 let selectedMode = "Exam";
+
+// ==========================================
+// OFFLINE EXAM RECOVERY
+// ==========================================
+
+const ACTIVE_EXAM_PREFIX = "fundsiq_active_exam_v1:";
+
+function activeExamKey() {
+    const uid = auth.currentUser?.uid;
+    return uid ? ACTIVE_EXAM_PREFIX + uid : null;
+}
+
+function saveActiveExam() {
+    const key = activeExamKey();
+    if (!key || !questions.length || isSubmitting) return;
+
+    try {
+        localStorage.setItem(key, JSON.stringify({
+            version: 1,
+            uid: auth.currentUser.uid,
+            course: selectedCourse,
+            mode: selectedMode,
+            questionCount: questions.length,
+            questions,
+            currentQuestion,
+            answers,
+            review,
+            timeLeft,
+            savedAt: Date.now(),
+            examStartTime,
+            examSessionId
+        }));
+    } catch (error) {
+        console.warn("Could not save exam progress locally:", error);
+    }
+}
+
+async function restoreActiveExam() {
+    const key = activeExamKey();
+    if (!key) return;
+
+    let saved;
+    try {
+        saved = JSON.parse(localStorage.getItem(key) || "null");
+    } catch (error) {
+        localStorage.removeItem(key);
+        return;
+    }
+
+    if (!saved || saved.version !== 1 || saved.uid !== auth.currentUser?.uid ||
+        !Array.isArray(saved.questions) || !saved.questions.length) return;
+
+    // Resume only when this same exam page was refreshed. If the student
+    // navigated away and later opened the exam page again, the old attempt
+    // is treated as ended, matching the previous FundsIQ behaviour.
+    const navigationEntry = performance.getEntriesByType?.("navigation")?.[0];
+    const isPageRefresh = navigationEntry
+        ? navigationEntry.type === "reload"
+        : performance.navigation?.type === 1;
+
+    if (!isPageRefresh) {
+        localStorage.removeItem(key);
+        return;
+    }
+
+    const confirmed = await showConfirmModal({
+        type: "info",
+        title: "Resume Your Previous Exam?",
+        message: "We found an unfinished exam saved on this device.",
+        details: "Your previous answers and question order will be restored.",
+        confirmText: "Resume Exam",
+        cancelText: "Start Fresh"
+    });
+
+    if (confirmed !== true) {
+        localStorage.removeItem(key);
+        return;
+    }
+
+    questions = saved.questions;
+    selectedCourse = saved.course;
+    selectedMode = saved.mode === "Quiz" ? "Quiz" : "Exam";
+    currentQuestion = Math.min(
+        Math.max(0, Number(saved.currentQuestion) || 0),
+        questions.length - 1
+    );
+    answers = Array.isArray(saved.answers) ? saved.answers : [];
+    review = Array.isArray(saved.review) ? saved.review : [];
+    timeLeft = Math.max(0, Number(saved.timeLeft) || 0);
+    examStartTime = Number(saved.examStartTime) || Date.now();
+    examSessionId = saved.examSessionId || ("exam_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10));
+
+    // Count time elapsed while the app was closed or in the background.
+    if (selectedMode === "Exam") {
+        const elapsed = Math.max(0, Math.floor((Date.now() - Number(saved.savedAt || Date.now())) / 1000));
+        timeLeft = Math.max(0, timeLeft - elapsed);
+    }
+
+    document.getElementById("setup-screen").style.display = "none";
+    document.getElementById("exam-screen").style.display = "block";
+    const modeEl = document.getElementById("mode");
+    if (modeEl) modeEl.innerText = selectedMode + " Mode";
+
+    loadQuestion();
+    if (selectedMode === "Exam") {
+        if (timeLeft <= 0) finishExam(true);
+        else startTimer();
+    } else {
+        const timerEl = document.getElementById("timer");
+        if (timerEl) timerEl.innerText = "♾️ Unlimited";
+    }
+}
+
+window.addEventListener("pagehide", saveActiveExam);
+
+// Some mobile browsers restore a page from the back-forward cache when the
+// student returns with the browser Back button. That is still leaving the
+// exam, not refreshing it, so end the attempt and show setup on that return.
+window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+
+    const key = activeExamKey();
+    if (key) localStorage.removeItem(key);
+
+    clearInterval(timerInterval);
+    timerInterval = null;
+    questions = [];
+    currentQuestion = 0;
+    answers = [];
+    review = [];
+    timeLeft = 0;
+    examStartTime = 0;
+    examSessionId = "";
+    isSubmitting = false;
+
+    const examScreen = document.getElementById("exam-screen");
+    const setupScreen = document.getElementById("setup-screen");
+    if (examScreen) examScreen.style.display = "none";
+    if (setupScreen) setupScreen.style.display = "block";
+});
+
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveActiveExam();
+});
+
 
 // ==========================================
 // COURSE RESOLUTION
@@ -228,6 +376,13 @@ function initPage() {
     if (examScreen) examScreen.style.display = "none";
 
     if (setupScreen) setupScreen.style.display = "block";
+
+    // Restore only after Firebase has restored the signed-in account.
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            restoreActiveExam().catch(error => console.warn("Exam recovery failed:", error));
+        }
+    });
 }
 
 // DOM READY
@@ -423,6 +578,7 @@ async function startExam() {
         ) * 60;
 
         examStartTime = Date.now();
+        examSessionId = "exam_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
 
         const modeEl = document.getElementById("mode");
 
@@ -594,6 +750,7 @@ function loadQuestion() {
     createPalette();
 
     updateNextButton();
+    saveActiveExam();
 }
 
 // ==========================================
@@ -778,6 +935,7 @@ function startTimer() {
         timeLeft--;
 
         updateTimerDisplay();
+        if (timeLeft % 5 === 0) saveActiveExam();
 
     }, 1000);
 }
@@ -1015,232 +1173,111 @@ async function finishExam(autoSubmit = false) {
         console.warn("LocalStorage save failed:", error);
     }
 
-    // Firestore submission
-
-    let examId = "offline_" + Date.now();
-
+    // Queue the completed result locally first. A stable session ID makes
+    // retries safe and prevents duplicate result documents.
     const user = auth.currentUser;
+    let examId = examSessionId || ("exam_" + Date.now());
 
-    if (user) {
+    const resultPayload = {
+        course: selectedCourse,
+        courseTitle: COURSE_TITLES[selectedCourse] || selectedCourse.toUpperCase(),
+        score: correctAnswers,
+        correct: correctAnswers,
+        wrong: wrongAnswers,
+        unanswered: unansweredCount,
+        totalQuestions,
+        percentage,
+        mode: selectedMode,
+        duration: examDuration,
+        durationFormatted: timeSpentFormatted,
+        chapterResults,
+        strongChapters,
+        weakChapters,
+        grade: percentage >= 70 ? "A" : percentage >= 60 ? "B" : percentage >= 50 ? "C" : percentage >= 45 ? "D" : "F",
+        completedAt: new Date().toISOString()
+    };
 
+    try {
+        const queueKey = user
+            ? "fundsiq_pending_exam_results_v1:" + user.uid
+            : "fundsiq_offline_exam_history_mock";
+
+        const pending = JSON.parse(localStorage.getItem(queueKey) || "[]");
+        const alreadyQueued = pending.some(item => item.sessionId === examId);
+        if (!alreadyQueued) {
+            pending.unshift({
+                sessionId: examId,
+                uid: user?.uid || null,
+                result: resultPayload
+            });
+            localStorage.setItem(queueKey, JSON.stringify(pending));
+        }
+    } catch (storageError) {
+        console.error("Could not queue exam result locally:", storageError);
+    }
+
+    // Try immediate synchronization. If the device is offline or Firestore
+    // rejects the write, the queued result remains on this device.
+    if (user && navigator.onLine) {
         try {
-
-            const resultsRef = collection(
-                db,
-                `users/${user.uid}/results`
-            );
-
-            const docRef = await addDoc(resultsRef, {
-
-                course: selectedCourse,
-
-                courseTitle:
-                    COURSE_TITLES[selectedCourse] ||
-                    selectedCourse.toUpperCase(),
-
-                score: correctAnswers,
-
-                correct: correctAnswers,
-
-                wrong: wrongAnswers,
-
-                unanswered: unansweredCount,
-
-                totalQuestions: totalQuestions,
-
-                percentage: percentage,
-
-                mode: selectedMode,
-
-                duration: examDuration,
-
-                durationFormatted: timeSpentFormatted,
-
-                chapterResults: chapterResults,
-
-                strongChapters: strongChapters,
-
-                weakChapters: weakChapters,
-
+            await setDoc(doc(db, "users", user.uid, "results", examId), {
+                ...resultPayload,
                 date: serverTimestamp()
-            });
+            }, { merge: true });
 
-            examId = docRef.id;
-
-            // Exam history
-
-            const examHistoryRef = collection(
-                db,
-                `users/${user.uid}/examHistory`
-            );
-
-            await addDoc(examHistoryRef, {
-
-                course: selectedCourse,
-
-                courseTitle:
-                    COURSE_TITLES[selectedCourse] ||
-                    selectedCourse.toUpperCase(),
-
-                score: correctAnswers,
-
-                totalQuestions: totalQuestions,
-
-                correct: correctAnswers,
-
-                wrong: wrongAnswers,
-
-                unanswered: unansweredCount,
-
-                percentage: percentage,
-
-                grade:
-                    percentage >= 70 ? "A" :
-                    percentage >= 60 ? "B" :
-                    percentage >= 50 ? "C" :
-                    percentage >= 45 ? "D" : "F",
-
-                mode: selectedMode,
-
-                duration: examDuration,
-
-                durationFormatted: timeSpentFormatted,
-
-                chapterResults: chapterResults,
-
-                strongChapters: strongChapters,
-
-                weakChapters: weakChapters,
-
+            await setDoc(doc(db, "users", user.uid, "examHistory", examId), {
+                ...resultPayload,
                 completedAt: serverTimestamp()
-            });
+            }, { merge: true });
 
-            // Update user statistics
-
+            // Keep the existing online profile statistics behavior.
             const userRef = doc(db, "users", user.uid);
-
-            const snap = await getDoc(userRef);
-
-            if (snap.exists()) {
-
-                const data = snap.data();
-
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const data = userSnap.data();
                 const courseField = selectedCourse + "Score";
-
-                const totalScoreAccumulated =
-                    (data.totalScore || 0) + correctAnswers;
-
-                const newCompletedTests =
-                    (data.completedTests || 0) + 1;
-
-                const oldAvg = data.averageScore || 0;
-
-                const newAvg = Number(
-                    (
-                        (
-                            oldAvg * (newCompletedTests - 1) +
-                            percentage
-                        ) / newCompletedTests
-                    ).toFixed(1)
-                );
-
-                const currentBest = data.bestScore || 0;
-
-                const newBest = Math.max(
-                    currentBest,
-                    percentage
-                );
-
+                const totalScoreAccumulated = (data.totalScore || 0) + correctAnswers;
+                const newCompletedTests = (data.completedTests || 0) + 1;
+                const oldAverage = data.averageScore || 0;
+                const newAverage = Number((
+                    (oldAverage * (newCompletedTests - 1) + percentage) /
+                    newCompletedTests
+                ).toFixed(1));
                 await updateDoc(userRef, {
-
                     completedTests: newCompletedTests,
-
                     totalScore: totalScoreAccumulated,
-
-                    [courseField]:
-                        (data[courseField] || 0) + correctAnswers,
-
-                    averageScore: newAvg,
-
-                    bestScore: newBest,
-
-                    level:
-                        Math.floor(totalScoreAccumulated / 100) + 1
+                    [courseField]: (data[courseField] || 0) + correctAnswers,
+                    averageScore: newAverage,
+                    bestScore: Math.max(data.bestScore || 0, percentage),
+                    level: Math.floor(totalScoreAccumulated / 100) + 1
                 });
             }
 
-        } catch (dbError) {
-
-            console.error(
-                "Firestore submission write error:",
-                dbError
-            );
-
+            const queueKey = "fundsiq_pending_exam_results_v1:" + user.uid;
+            const pending = JSON.parse(localStorage.getItem(queueKey) || "[]");
+            localStorage.setItem(queueKey, JSON.stringify(
+                pending.filter(item => item.sessionId !== examId)
+            ));
+        } catch (syncError) {
+            console.warn("Exam result queued for later synchronization:", syncError);
             await showModal({
-                type: "warning",
-                title: "Results Saved",
-                message: "Your exam was submitted successfully.",
-                details: "Some online statistics could not be synchronized, but your local result is saved."
+                type: "info",
+                title: "Result Saved on This Device",
+                message: "Your exam is complete. FundsIQ will retry syncing your result when internet access is available and permissions allow it."
             });
         }
-
-    } else {
-
+    } else if (user) {
         await showModal({
             type: "info",
-            title: "Exam Saved Offline",
-            message: "Your examination has been submitted.",
-            details: "Please log in when you're online to synchronize your score metrics."
+            title: "Result Saved Offline",
+            message: "Your exam is complete. Your result is stored on this device and will sync when you reconnect."
         });
-
-        // Local offline history
-
-        try {
-
-            const mockKey = "fundsiq_offline_exam_history_mock";
-
-            let localList = localStorage.getItem(mockKey);
-
-            localList = localList ? JSON.parse(localList) : [];
-
-            localList.unshift({
-
-                id: "offline_" + Date.now(),
-
-                course: selectedCourse,
-
-                score: correctAnswers,
-
-                totalQuestions: totalQuestions,
-
-                percentage: percentage,
-
-                grade:
-                    percentage >= 50 ? "A" : "F",
-
-                correct: correctAnswers,
-
-                wrong: wrongAnswers,
-
-                duration: examDuration,
-
-                chapterResults: chapterResults,
-
-                completedAt: new Date().toISOString()
-            });
-
-            localStorage.setItem(
-                mockKey,
-                JSON.stringify(localList)
-            );
-
-        } catch (storageError) {
-
-            console.warn(
-                "Offline history backup failed:",
-                storageError
-            );
-        }
+    } else {
+        await showModal({
+            type: "info",
+            title: "Result Saved on This Device",
+            message: "Your result is saved locally. Log in when online to sync it to your account."
+        });
     }
 
     // Save exam ID
@@ -1257,10 +1294,63 @@ async function finishExam(autoSubmit = false) {
         );
     }
 
+    // The exam is complete; remove its recovery snapshot.
+    const activeKey = activeExamKey();
+    if (activeKey) localStorage.removeItem(activeKey);
+
     // Go to results
 
     window.location.href = "result.html";
 }
+
+// ==========================================
+// RETRY PENDING EXAM RESULT SYNCHRONIZATION
+// ==========================================
+
+async function syncPendingExamResults(user) {
+    if (!user || !navigator.onLine) return;
+
+    const queueKey = "fundsiq_pending_exam_results_v1:" + user.uid;
+    let pending = [];
+
+    try {
+        pending = JSON.parse(localStorage.getItem(queueKey) || "[]");
+    } catch (error) {
+        console.warn("Pending exam queue is unreadable:", error);
+        return;
+    }
+
+    if (!Array.isArray(pending) || !pending.length) return;
+
+    const remaining = [];
+    for (const item of pending) {
+        if (!item || item.uid !== user.uid || !item.sessionId || !item.result) continue;
+        try {
+            await setDoc(doc(db, "users", user.uid, "results", item.sessionId), {
+                ...item.result,
+                date: serverTimestamp()
+            }, { merge: true });
+
+            await setDoc(doc(db, "users", user.uid, "examHistory", item.sessionId), {
+                ...item.result,
+                completedAt: serverTimestamp()
+            }, { merge: true });
+        } catch (error) {
+            console.warn("Could not sync a pending exam result yet:", error);
+            remaining.push(item);
+        }
+    }
+
+    localStorage.setItem(queueKey, JSON.stringify(remaining));
+}
+
+onAuthStateChanged(auth, user => {
+    if (user) syncPendingExamResults(user);
+});
+
+window.addEventListener("online", () => {
+    if (auth.currentUser) syncPendingExamResults(auth.currentUser);
+});
 
 // ==========================================
 // GLOBAL FUNCTIONS

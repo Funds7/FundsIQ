@@ -1,83 +1,104 @@
-import { auth, db } from "./firebase.js";
-
-import {
-    collection,
-    query,
-    orderBy,
-    getDocs
-} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
-
+import { auth } from "./firebase.js";
+import { showModal } from "./modals.js";
 import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-
-let allUsers = [];
-let currentField = "totalScore";
-
-const FREE_USER_LIMIT = 10;
+const API_URL = "https://fundsiq-api.onrender.com";
 
 
 // ========================================
-// LOAD LEADERBOARD
+// PREMIUM UPGRADE FROM LEADERBOARD
+// ========================================
+
+async function premiumUnlock() {
+    const user = auth.currentUser;
+
+    if (!user) {
+        await showModal({
+            type: "warning",
+            title: "Login Required",
+            message: "Please sign in before upgrading to Premium."
+        });
+        return;
+    }
+
+    try {
+        const idToken = await user.getIdToken(true);
+        const response = await fetch(
+            `${API_URL}/api/payments/premium/initialize`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${idToken}`
+                }
+            }
+        );
+
+        const data = await response.json();
+        if (!response.ok || !data.authorization_url) {
+            throw new Error(data.msg || data.message || "Unable to start Premium payment.");
+        }
+
+        window.location.href = data.authorization_url;
+    } catch (error) {
+        console.error("Leaderboard Premium payment error:", error);
+        await showModal({
+            type: "error",
+            title: "Payment Could Not Start",
+            message: "We couldn't connect to the payment service.",
+            details: error.message || "Please try again."
+        });
+    }
+}
+
+window.premiumUnlock = premiumUnlock;
+const FREE_USER_LIMIT = 10;
+let currentField = "totalScore";
+let latestLeaderboard = null;
+
+
+// ========================================
+// LOAD LEADERBOARD SECURELY
 // ========================================
 
 async function loadLeaderboard() {
+    const list = document.getElementById("leaderboard-list");
+    if (list) {
+        list.innerHTML = '<div class="leader-empty">Loading leaderboard...</div>';
+    }
 
     try {
-
-        const q = query(
-            collection(db, "users"),
-            orderBy(currentField, "desc")
-        );
-
-        const snap = await getDocs(q);
-
-        allUsers = [];
-
-        snap.forEach(doc => {
-
-            allUsers.push({
-                id: doc.id,
-                ...doc.data()
-            });
-
-        });
-
-        if (allUsers.length === 0) {
-            showEmptyLeaderboard();
+        const user = auth.currentUser;
+        if (!user) {
+            showSignedOutState();
             return;
         }
 
-        const user = auth.currentUser;
+        const token = await user.getIdToken();
+        const response = await fetch(
+            `${API_URL}/api/leaderboard?field=${encodeURIComponent(currentField)}`,
+            {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            }
+        );
 
-        const currentUser = user
-            ? allUsers.find(u => u.id === user.uid)
-            : null;
+        const data = await response.json();
+        if (!response.ok || data.success !== true) {
+            throw new Error(data.msg || "Unable to load leaderboard.");
+        }
 
-        const isPremium = isPremiumUser(currentUser);
-
-
-        // Top 3
-        showTopThree(currentUser);
-
-
-        // Rankings
-        showLeaderboard(currentUser, isPremium);
-
-
-        // Personal ranking
-        showPersonalRank(currentUser, isPremium);
-
+        latestLeaderboard = data;
+        showTopThree(data.topThree || []);
+        showLeaderboard(data.rankings || [], data.premium === true);
+        showPersonalRank(data.personalRank, data.premium === true);
     } catch (error) {
-
         console.error("Leaderboard error:", error);
-
-        const list =
-            document.getElementById("leaderboard-list");
-
         if (list) {
-
             list.innerHTML = `
                 <div class="leader-empty">
                     Unable to load leaderboard.
@@ -91,76 +112,34 @@ async function loadLeaderboard() {
 
 
 // ========================================
-// PREMIUM CHECK
-// ========================================
-
-function isPremiumUser(user) {
-
-    if (!user) return false;
-
-    return (
-        user.premium === true ||
-        user.premium === "true"
-    );
-}
-
-
-// ========================================
 // TOP THREE
 // ========================================
 
-function showTopThree(currentUser) {
-
-    const first = allUsers[0];
-    const second = allUsers[1];
-    const third = allUsers[2];
-
-    setPodium("first", first, currentUser);
-    setPodium("second", second, currentUser);
-    setPodium("third", third, currentUser);
+function showTopThree(topThree) {
+    setPodium("first", topThree[0]);
+    setPodium("second", topThree[1]);
+    setPodium("third", topThree[2]);
 }
 
-
-function setPodium(position, user, currentUser) {
-
-    const nameElement =
-        document.getElementById(`${position}-name`);
-
-    const scoreElement =
-        document.getElementById(`${position}-score`);
-
+function setPodium(position, entry) {
+    const nameElement = document.getElementById(`${position}-name`);
+    const scoreElement = document.getElementById(`${position}-score`);
     if (!nameElement || !scoreElement) return;
 
-
-    if (!user) {
-
+    if (!entry) {
         nameElement.innerText = "—";
         scoreElement.innerText = "0 Points";
-
         return;
     }
 
-
-    // Free users must not see themselves,
-    // even if they are in the Top 3.
-    if (
-        currentUser &&
-        user.id === currentUser.id &&
-        !isPremiumUser(currentUser)
-    ) {
-
+    if (entry.private === true) {
         nameElement.innerText = "Private";
         scoreElement.innerText = "Ranking hidden";
-
         return;
     }
 
-
-    nameElement.innerText =
-        user.name || "Anonymous";
-
-    scoreElement.innerText =
-        `${user[currentField] || 0} Points`;
+    nameElement.innerText = entry.name || "Anonymous";
+    scoreElement.innerText = `${Number(entry.score) || 0} Points`;
 }
 
 
@@ -168,116 +147,54 @@ function setPodium(position, user, currentUser) {
 // PUBLIC RANKINGS
 // ========================================
 
-function showLeaderboard(currentUser, isPremium) {
-
-    const list =
-        document.getElementById("leaderboard-list");
-
+function showLeaderboard(rankings, isPremium) {
+    const list = document.getElementById("leaderboard-list");
     if (!list) return;
 
     list.innerHTML = "";
 
-
-    let visibleUsers;
-
-
-    if (isPremium) {
-
-        // Premium users see the full leaderboard
-        // after the Top 3.
-        visibleUsers = allUsers.slice(3);
-
-    } else {
-
-        // Free users see only a limited number
-        // and can never see themselves.
-        visibleUsers = allUsers
-            .slice(3)
-            .filter(user => {
-
-                return !currentUser ||
-                    user.id !== currentUser.id;
-
-            })
-            .slice(0, FREE_USER_LIMIT);
-    }
-
-
-    if (visibleUsers.length === 0) {
-
+    if (rankings.length === 0) {
         list.innerHTML = `
             <div class="leader-empty">
                 No more rankings to display.
             </div>
         `;
-
     } else {
-
-        visibleUsers.forEach(user => {
-
-            const realRank =
-                allUsers.findIndex(
-                    u => u.id === user.id
-                ) + 1;
-
-
-            const card =
-                document.createElement("div");
-
+        rankings.forEach(user => {
+            const card = document.createElement("div");
             card.className = "leader-card";
 
+            const rank = document.createElement("div");
+            rank.className = "rank-number";
+            rank.textContent = String(user.rank);
 
-            card.innerHTML = `
+            const info = document.createElement("div");
+            info.className = "leader-info";
 
-                <div class="rank-number">
-                    ${realRank}
-                </div>
+            const name = document.createElement("div");
+            name.className = "leader-name";
+            name.textContent = user.name || "Anonymous";
 
-                <div class="leader-info">
+            const score = document.createElement("div");
+            score.className = "leader-score";
+            score.textContent = `${Number(user.score) || 0} Points`;
 
-                    <div class="leader-name">
-                        ${escapeHTML(
-                            user.name || "Anonymous"
-                        )}
-                    </div>
-
-                    <div class="leader-score">
-                        ${user[currentField] || 0} Points
-                    </div>
-
-                </div>
-
-            `;
-
-
+            info.append(name, score);
+            card.append(rank, info);
             list.appendChild(card);
-
         });
     }
 
-
-    // Free user message
     if (!isPremium) {
-
-        const premiumMessage =
-            document.createElement("div");
-
-        premiumMessage.className =
-            "premium-hint";
-
+        const premiumMessage = document.createElement("div");
+        premiumMessage.className = "premium-hint";
         premiumMessage.innerHTML = `
-
-            <strong>
-                Premium required for your ranking
-            </strong>
-
+            <strong>Premium required for your ranking</strong>
             <span>
-                Upgrade to Premium to see your own
-                position and access the full leaderboard.
+                Upgrade to Premium to see your own position and access
+                the complete leaderboard.
             </span>
-
         `;
-
         list.appendChild(premiumMessage);
     }
 }
@@ -287,147 +204,70 @@ function showLeaderboard(currentUser, isPremium) {
 // PERSONAL RANKING
 // ========================================
 
-function showPersonalRank(currentUser, isPremium) {
-
-    const box =
-        document.querySelector(".activate-box");
-
+function showPersonalRank(personalRank, isPremium) {
+    const box = document.querySelector(".activate-box");
     if (!box) return;
 
-
-    // Not logged in
-    if (!currentUser) {
-
+    if (!auth.currentUser) {
         box.innerHTML = `
             <div class="activate-content">
-
-                <div class="activate-icon">
-                    🔒
-                </div>
-
+                <div class="activate-icon">🔒</div>
                 <div>
-                    <h2>Premium Required</h2>
-
-                    <p>
-                        Sign in and purchase Premium
-                        to access your ranking.
-                    </p>
+                    <h2>Sign in required</h2>
+                    <p>Sign in and purchase Premium to access your ranking.</p>
                 </div>
-
             </div>
         `;
-
         return;
     }
 
-
-    const index =
-        allUsers.findIndex(
-            u => u.id === currentUser.id
-        );
-
-
-    // ========================================
-    // PREMIUM USER
-    // ========================================
-
-    if (isPremium && index !== -1) {
-
+    if (isPremium && personalRank) {
         box.classList.add("personal-ranking");
-
         box.innerHTML = `
-
             <div class="personal-header">
-
-                <span class="personal-icon">
-                    ✓
-                </span>
-
+                <span class="personal-icon">✓</span>
                 <div>
-
                     <h2>Your Ranking</h2>
-
-                    <p>
-                        Premium leaderboard access
-                    </p>
-
+                    <p>Premium leaderboard access</p>
                 </div>
-
             </div>
-
-
             <div class="personal-rank">
-
-                <span>
-                    Rank
-                </span>
-
-                <strong>
-                    ${index + 1}
-                </strong>
-
+                <span>Rank</span>
+                <strong>${Number(personalRank.rank)}</strong>
             </div>
-
-
             <div class="personal-details">
-
-                <strong>
-                    ${escapeHTML(
-                        currentUser.name || "Anonymous"
-                    )}
-                </strong>
-
-                <span>
-                    ${currentUser[currentField] || 0} Points
-                </span>
-
+                <strong>${escapeHTML(personalRank.name || "Anonymous")}</strong>
+                <span>${Number(personalRank.score) || 0} Points</span>
             </div>
-
         `;
-
         return;
     }
-
-
-    // ========================================
-    // FREE USER
-    // ========================================
 
     box.classList.remove("personal-ranking");
-
     box.innerHTML = `
-
         <div class="activate-content">
-
-            <div class="activate-icon">
-                🔒
-            </div>
-
+            <div class="activate-icon">🔒</div>
             <div>
-
-                <h2>
-                    Premium Required
-                </h2>
-
+                <h2>Premium Required</h2>
                 <p>
-                    Purchase Premium to see your
-                    exact ranking and access the
-                    full leaderboard.
+                    Purchase Premium to see your exact ranking and access
+                    the complete leaderboard.
                 </p>
-
             </div>
-
         </div>
-
-
-        <button
-            class="premium-button"
-            onclick="premiumUnlock()"
-        >
+        <button class="premium-button" id="leaderboard-premium-button">
             💎 Get Premium
         </button>
-
     `;
+
+    const premiumButton = document.getElementById("leaderboard-premium-button");
+    if (premiumButton) {
+        premiumButton.addEventListener("click", () => {
+            if (typeof window.premiumUnlock === "function") {
+                window.premiumUnlock();
+            }
+        });
+    }
 }
 
 
@@ -435,27 +275,13 @@ function showPersonalRank(currentUser, isPremium) {
 // COURSE SELECTOR
 // ========================================
 
-window.loadCourseLeaderboard =
-function(course, button) {
-
-    document
-        .querySelectorAll(
-            ".course-filter button"
-        )
-        .forEach(btn => {
-
-            btn.classList.remove("active");
-
-        });
-
+window.loadCourseLeaderboard = function(course, button) {
+    document.querySelectorAll(".course-filter button").forEach(btn => {
+        btn.classList.remove("active");
+    });
 
     if (button) {
-
         button.classList.add("active");
-
-
-        // Automatically shift the selected
-        // course into the visible center.
         button.scrollIntoView({
             behavior: "smooth",
             block: "nearest",
@@ -463,27 +289,16 @@ function(course, button) {
         });
     }
 
-
-    if (course === "overall") {
-
-        currentField = "totalScore";
-
-    } else {
-
-        currentField = course + "Score";
-    }
-
-
+    currentField = course === "overall" ? "totalScore" : course + "Score";
     loadLeaderboard();
 };
 
 
 // ========================================
-// HTML ESCAPE
+// HELPERS
 // ========================================
 
 function escapeHTML(value) {
-
     return String(value)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -492,26 +307,12 @@ function escapeHTML(value) {
         .replace(/'/g, "&#039;");
 }
 
-
-// ========================================
-// EMPTY LEADERBOARD
-// ========================================
-
-function showEmptyLeaderboard() {
-
-    const list =
-        document.getElementById(
-            "leaderboard-list"
-        );
-
+function showSignedOutState() {
+    const list = document.getElementById("leaderboard-list");
     if (list) {
-
-        list.innerHTML = `
-            <div class="leader-empty">
-                No leaderboard results yet.
-            </div>
-        `;
+        list.innerHTML = '<div class="leader-empty">Please sign in to view the leaderboard.</div>';
     }
+    showPersonalRank(null, false);
 }
 
 
@@ -519,35 +320,12 @@ function showEmptyLeaderboard() {
 // START
 // ========================================
 
-window.addEventListener(
-    "DOMContentLoaded",
-    () => {
+window.addEventListener("DOMContentLoaded", () => {
+    const firstButton = document.querySelector(".course-filter button");
+    if (firstButton) firstButton.classList.add("active");
 
-        onAuthStateChanged(
-            auth,
-            (user) => {
-
-                const firstButton =
-                    document.querySelector(
-                        ".course-filter button"
-                    );
-
-                if (firstButton) {
-
-                    firstButton.classList.add(
-                        "active"
-                    );
-                }
-
-
-                if (user) {
-
-                    loadLeaderboard();
-
-                }
-
-            }
-        );
-
-    }
-);
+    onAuthStateChanged(auth, user => {
+        if (user) loadLeaderboard();
+        else showSignedOutState();
+    });
+});

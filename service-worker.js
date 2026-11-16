@@ -1,4 +1,4 @@
-const CACHE_NAME = "fundsiq-offline-v7";
+const CACHE_NAME = "fundsiq-offline-v11";
 
 // Essential FundsIQ application files
 const APP_FILES = [
@@ -18,11 +18,21 @@ const APP_FILES = [
   // Firebase and coins
   "./firebase.js",
   "./coins.js",
+  "./coin-api.js",
+  "./premium-access.js",
+      "./coin-api.js",
 
   // Styles
   "./style.css",
   "./more.css",
   "./components.css",
+
+  // Leaderboard
+  "./leaderboard.html",
+  "./leaderboard.js",
+  "./leaderboard.css",
+  "./modals.js",
+  "./modals.css",
 
   // Profile
   "./profile.html",
@@ -54,6 +64,7 @@ const APP_FILES = [
   // Examination
   "./exam.html",
   "./engine.js",
+      "./exam-sync.js",
   "./questions.js",
 
   // Results
@@ -72,6 +83,38 @@ self.addEventListener("install", event => {
   event.waitUntil((async () => {
 
     const cache = await caches.open(CACHE_NAME);
+
+    // Prioritize the complete exam experience, especially the large question bank.
+    // These assets are required for a useful offline examination session.
+    const EXAM_CORE_FILES = [
+      "./exam.html",
+      "./engine.js",
+      "./questions.js",
+      "./firebase.js",
+      "./coins.js",
+      "./premium-access.js",
+      "./modals.js",
+      "./modals.css",
+      "./style.css",
+      "./result.html",
+      "./result.js",
+      "./result.css"
+    ];
+
+    for (const file of EXAM_CORE_FILES) {
+      try {
+        const request = new Request(new URL(file, self.location.href), {
+          cache: "reload"
+        });
+        const response = await fetch(request);
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status);
+        }
+        await cache.put(request, response);
+      } catch (error) {
+        console.warn("FundsIQ exam offline asset was not cached:", file, error);
+      }
+    }
 
     for (const file of APP_FILES) {
 

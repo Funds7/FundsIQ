@@ -1,16 +1,13 @@
-import { auth, db } from "./firebase.js";
+import { auth } from "./firebase.js";
+import { getServerCoinBalance, spendCoinsOnServer } from "./coin-api.js";
 import { showModal } from "./modals.js";
+import { isPremiumUser } from "./premium-access.js";
 
 import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-import {
-    doc,
-    getDoc,
-    updateDoc,
-    increment
-} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+
 
 
 /* =========================================================================
@@ -21,36 +18,17 @@ const API_URL = "https://fundsiq-api.onrender.com";
 
 
 /* =========================================================================
-GET USER DATA
+GET COINS
 ========================================================================= */
 
-async function getUserData() {
-    const user = auth.currentUser;
-
-    if (!user) return null;
-
+async function getCoins() {
+    if (!auth.currentUser) return 0;
     try {
-        const userRef = doc(db, "users", user.uid);
-        const snap = await getDoc(userRef);
-
-        if (!snap.exists()) return null;
-
-        return snap.data();
-
+        return await getServerCoinBalance();
     } catch (error) {
-        console.error("Error getting user data:", error);
-        return null;
+        console.error("Error getting coin balance:", error);
+        return 0;
     }
-}
-
-
-/* =========================================================================
-CHECK PREMIUM STATUS
-========================================================================= */
-
-async function isPremiumUser() {
-    const userData = await getUserData();
-    return userData?.premium === true;
 }
 
 
@@ -118,60 +96,33 @@ async function updateCoinDisplay() {
 SPEND COINS
 ========================================================================= */
 
-async function spendCoins(amount, reason = "Purchase") {
+async function spendCoins(amount, reason = "Exam attempt") {
     const user = auth.currentUser;
 
     if (!user) {
-
         await showModal({
             type: "warning",
             title: "Login Required",
             message: "Please login to continue."
         });
-
         return false;
     }
 
-    const premium = await isPremiumUser();
-
-    if (premium) return true;
-
-    const userRef = doc(db, "users", user.uid);
-    const snap = await getDoc(userRef);
-
-    if (!snap.exists()) {
-
+    try {
+        await spendCoinsOnServer(amount, reason);
+        await updateCoinDisplay();
+        return true;
+    } catch (error) {
         await showModal({
-            type: "error",
-            title: "Profile Not Found",
-            message: "We couldn't find your FundsIQ account profile."
+            type: error.status === 402 ? "warning" : "error",
+            title: error.status === 402 ? "Insufficient Coins" : "Coin Payment Failed",
+            message: error.message || "Unable to verify your coin balance.",
+            details: error.status === 402
+                ? `Required: ${error.required || 10} coins. Balance: ${error.balance ?? "Unavailable"} coins.`
+                : "Please check your internet connection and try again."
         });
-
         return false;
     }
-
-    const currentCoins = snap.data().coins ?? 0;
-
-    if (currentCoins < amount) {
-
-        await showModal({
-            type: "warning",
-            title: "Insufficient Coins",
-            message: "You don't have enough coins to complete this action.",
-            details: `Required: ${amount} coins\nYour balance: ${currentCoins} coins`,
-            buttonText: "Okay"
-        });
-
-        return false;
-    }
-
-    await updateDoc(userRef, {
-        coins: increment(-amount)
-    });
-
-    await updateCoinDisplay();
-
-    return true;
 }
 
 
@@ -179,50 +130,13 @@ async function spendCoins(amount, reason = "Purchase") {
 REWARD COINS
 ========================================================================= */
 
-async function rewardCoins(amount, reason = "Reward") {
-    const user = auth.currentUser;
-
-    if (!user) {
-
-        await showModal({
-            type: "warning",
-            title: "Login Required",
-            message: "Please login to receive your reward."
-        });
-
-        return false;
-    }
-
-    try {
-        const userRef = doc(db, "users", user.uid);
-
-        await updateDoc(userRef, {
-            coins: increment(amount)
-        });
-
-        await updateCoinDisplay();
-
-        await showModal({
-            type: "success",
-            title: "Coins Received!",
-            message: `Congratulations! You received ${amount} coins.`,
-            details: reason,
-            buttonText: "Awesome!"
-        });
-
-        return true;
-
-    } catch (error) {
-        console.error("Reward coins error:", error);
-
-        await showModal({
-            type: "error",
-            title: "Reward Failed",
-            message: "We couldn't add your coins. Please try again."
-        });
-
-        return false;
-    }
+async function rewardCoins() {
+    await showModal({
+        type: "info",
+        title: "Rewards Temporarily Unavailable",
+        message: "Coin rewards are being moved to verified server-side processing. Your balance cannot be changed from this screen."
+    });
+    return false;
 }
 
 
@@ -421,19 +335,11 @@ async function unlockWithCoins() {
         return;
     }
 
-    const paid = await spendCoins(50, "Leaderboard Access");
-
-    if (paid) {
-        localStorage.setItem("leaderboardAccess", "true");
-
-        await showModal({
-            type: "success",
-            title: "Leaderboard Unlocked!",
-            message: "You can now access the leaderboard."
-        });
-
-        location.reload();
-    }
+    await showModal({
+        type: "info",
+        title: "Premium Required",
+        message: "Free accounts can view the limited leaderboard. Premium members can view the complete leaderboard and their exact rank."
+    });
 }
 
 
