@@ -5,7 +5,7 @@ import {
     createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-const API_URL = "https://fundsiq-api.onrender.com";
+const API_URL = "https://fundsiq-api-staging.onrender.com";
 
 "use strict";
 
