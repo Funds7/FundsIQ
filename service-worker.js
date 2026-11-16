@@ -1,4 +1,4 @@
-const CACHE_NAME = "fundsiq-offline-v8";
+const CACHE_NAME = "fundsiq-offline-v9";
 
 // Essential FundsIQ application files
 const APP_FILES = [
@@ -55,6 +55,7 @@ const APP_FILES = [
   // Examination
   "./exam.html",
   "./engine.js",
+      "./exam-sync.js",
   "./questions.js",
 
   // Results
