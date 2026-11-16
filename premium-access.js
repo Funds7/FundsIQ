@@ -1,6 +1,6 @@
 import { auth } from "./firebase.js";
 
-const API_URL = "https://fundsiq-api.onrender.com";
+const API_URL = "https://fundsiq-api-staging.onrender.com";
 const STORAGE_KEY = "fundsiq_premium_entitlement_v1";
 
 // This cache is written ONLY after the FundsIQ server confirms Premium.
