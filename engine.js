@@ -333,10 +333,11 @@ function initPage() {
     if (setupScreen) setupScreen.style.display = "block";
 
     // Restore only after Firebase has restored the signed-in account.
+    let authWaitAttempts = 0;
     const waitForUser = () => {
         if (auth.currentUser) {
             restoreActiveExam().catch(error => console.warn("Exam recovery failed:", error));
-        } else {
+        } else if (authWaitAttempts++ < 40) {
             setTimeout(waitForUser, 300);
         }
     };
