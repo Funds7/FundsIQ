@@ -143,6 +143,19 @@ async function restoreActiveExam() {
     if (!saved || saved.version !== 1 || saved.uid !== auth.currentUser?.uid ||
         !Array.isArray(saved.questions) || !saved.questions.length) return;
 
+    // Resume only when this same exam page was refreshed. If the student
+    // navigated away and later opened the exam page again, the old attempt
+    // is treated as ended, matching the previous FundsIQ behaviour.
+    const navigationEntry = performance.getEntriesByType?.("navigation")?.[0];
+    const isPageRefresh = navigationEntry
+        ? navigationEntry.type === "reload"
+        : performance.navigation?.type === 1;
+
+    if (!isPageRefresh) {
+        localStorage.removeItem(key);
+        return;
+    }
+
     const confirmed = await showConfirmModal({
         type: "info",
         title: "Resume Your Previous Exam?",
