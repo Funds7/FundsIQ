@@ -437,6 +437,127 @@ app.post(
 
 
 // ======================================================
+// CREATE STUDENT PROFILE AND ISSUE SIGNUP / REFERRAL COINS
+// ======================================================
+
+app.post(
+  "/api/auth/profile/initialize",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const uid = req.firebaseUser.uid;
+      const email = String(req.firebaseUser.email || "").trim().toLowerCase();
+      const name = String(req.body?.name || "").trim().slice(0, 80);
+      const submittedReferralCode = String(req.body?.referralCode || "")
+        .trim()
+        .toUpperCase()
+        .slice(0, 32);
+
+      if (!email || !name) {
+        return res.status(400).json({
+          success: false,
+          msg: "A valid account email and student name are required."
+        });
+      }
+
+      const newUserRef = db.collection("users").doc(uid);
+      const existingProfile = await newUserRef.get();
+
+      if (existingProfile.exists) {
+        return res.json({
+          success: true,
+          alreadyInitialized: true,
+          referralApplied: false
+        });
+      }
+
+      let referrerRef = null;
+      let validReferralCode = "";
+
+      if (submittedReferralCode) {
+        const referralQuery = await db.collection("users")
+          .where("referralCode", "==", submittedReferralCode)
+          .limit(1)
+          .get();
+
+        if (!referralQuery.empty && referralQuery.docs[0].id !== uid) {
+          referrerRef = referralQuery.docs[0].ref;
+          validReferralCode = submittedReferralCode;
+        }
+      }
+
+      const activityRef = referrerRef
+        ? referrerRef.collection("referrals").doc()
+        : null;
+
+      const result = await db.runTransaction(async transaction => {
+        const freshUser = await transaction.get(newUserRef);
+        if (freshUser.exists) {
+          return { alreadyInitialized: true, referralApplied: false };
+        }
+
+        let referrerExists = false;
+        if (referrerRef) {
+          const referrerSnap = await transaction.get(referrerRef);
+          referrerExists = referrerSnap.exists;
+        }
+
+        transaction.create(newUserRef, {
+          uid,
+          name,
+          email,
+          coins: 20,
+          role: "student",
+          completedTests: 0,
+          totalScore: 0,
+          studyStreak: 0,
+          totalReferrals: 0,
+          referredBy: referrerExists ? validReferralCode : "",
+          totalEarnings: 0,
+          commissionBalance: 0,
+          premiumReferrals: 0,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        if (referrerExists && referrerRef && activityRef) {
+          transaction.update(referrerRef, {
+            coins: admin.firestore.FieldValue.increment(10),
+            totalReferrals: admin.firestore.FieldValue.increment(1)
+          });
+
+          transaction.create(activityRef, {
+            friendName: name,
+            value: "+10 🪙",
+            type: "coin_referral",
+            referredUserId: uid,
+            referralCode: validReferralCode,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
+        return {
+          alreadyInitialized: false,
+          referralApplied: Boolean(referrerExists)
+        };
+      });
+
+      return res.json({
+        success: true,
+        alreadyInitialized: result.alreadyInitialized,
+        referralApplied: result.referralApplied
+      });
+    } catch (error) {
+      console.error("Student profile initialization error:", error);
+      return res.status(500).json({
+        success: false,
+        msg: "Unable to initialize your FundsIQ profile."
+      });
+    }
+  }
+);
+
+
+// ======================================================
 // PREMIUM STATUS
 // ======================================================
 
