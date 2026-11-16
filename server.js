@@ -103,11 +103,11 @@ const API_BASE_URL =
 
 const PAYSTACK_CALLBACK_URL =
   process.env.PAYSTACK_CALLBACK_URL ||
-  API_BASE_URL.replace(/\\/$/, "") + "/api/payments/paystack/callback";
+  API_BASE_URL.replace(/\/+$/, "") + "/api/payments/paystack/callback";
 
 const PAYSTACK_WEBHOOK_URL =
   process.env.PAYSTACK_WEBHOOK_URL ||
-  API_BASE_URL.replace(/\\/$/, "") + "/api/payments/paystack/webhook";
+  API_BASE_URL.replace(/\/+$/, "") + "/api/payments/paystack/webhook";
 
 
 // ======================================================
