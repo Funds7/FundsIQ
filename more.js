@@ -1,5 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { showModal } from "./modals.js";
+import { isPremiumUser } from "./premium-access.js";
 
 import {
     onAuthStateChanged
@@ -41,16 +42,6 @@ async function getUserData() {
         console.error("Error getting user data:", error);
         return null;
     }
-}
-
-
-/* =========================================================================
-CHECK PREMIUM STATUS
-========================================================================= */
-
-async function isPremiumUser() {
-    const userData = await getUserData();
-    return userData?.premium === true;
 }
 
 
