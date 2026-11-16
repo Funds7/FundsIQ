@@ -35,7 +35,7 @@ import {
 // ============================================================================
 
 const API_BASE =
-    "https://fundsiq-api.onrender.com";
+    "https://fundsiq-api-staging.onrender.com";
 
 const MINIMUM_WITHDRAWAL =
     2000;
@@ -361,7 +361,7 @@ function subscribeToMarketerData(user) {
 
                 const referralLink =
     referralCode
-        ? `https://fundsiq.com.ng/signup.html?ref=${encodeURIComponent(referralCode)}`
+        ? `${window.location.origin}/signup.html?ref=${encodeURIComponent(referralCode)}`
         : "";
 
 
