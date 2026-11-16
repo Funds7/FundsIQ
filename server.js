@@ -92,13 +92,17 @@ const MARKETER_COMMISSION_NAIRA =
 const MINIMUM_WITHDRAWAL_NAIRA =
   2000;
 
+// Environment overrides keep staging isolated while preserving production defaults.
 const FRONTEND_URL =
+  process.env.FRONTEND_URL ||
   "https://funds7.github.io/FundsIQ/";
 
 const PAYSTACK_CALLBACK_URL =
+  process.env.PAYSTACK_CALLBACK_URL ||
   "https://fundsiq-api.onrender.com/api/payments/paystack/callback";
 
 const PAYSTACK_WEBHOOK_URL =
+  process.env.PAYSTACK_WEBHOOK_URL ||
   "https://fundsiq-api.onrender.com/api/payments/paystack/webhook";
 
 
@@ -159,7 +163,7 @@ app.get(
         ),
 
       webhook:
-        PAYSTACK_WEBHOOK_URL,
+        PAYSTACK_SECRET_KEY ? PAYSTACK_WEBHOOK_URL : null,
 
       premiumPrice:
         PREMIUM_PRICE_NAIRA,
@@ -3620,7 +3624,7 @@ app.listen(
 
     console.log(
       "Paystack webhook:",
-      PAYSTACK_WEBHOOK_URL
+      PAYSTACK_SECRET_KEY ? PAYSTACK_WEBHOOK_URL : "not configured"
     );
 
     console.log(
