@@ -1,9 +1,59 @@
 import { auth } from "./firebase.js";
+import { showModal } from "./modals.js";
 import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
 const API_URL = "https://fundsiq-api.onrender.com";
+
+
+// ========================================
+// PREMIUM UPGRADE FROM LEADERBOARD
+// ========================================
+
+async function premiumUnlock() {
+    const user = auth.currentUser;
+
+    if (!user) {
+        await showModal({
+            type: "warning",
+            title: "Login Required",
+            message: "Please sign in before upgrading to Premium."
+        });
+        return;
+    }
+
+    try {
+        const idToken = await user.getIdToken(true);
+        const response = await fetch(
+            `${API_URL}/api/payments/premium/initialize`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${idToken}`
+                }
+            }
+        );
+
+        const data = await response.json();
+        if (!response.ok || !data.authorization_url) {
+            throw new Error(data.msg || data.message || "Unable to start Premium payment.");
+        }
+
+        window.location.href = data.authorization_url;
+    } catch (error) {
+        console.error("Leaderboard Premium payment error:", error);
+        await showModal({
+            type: "error",
+            title: "Payment Could Not Start",
+            message: "We couldn't connect to the payment service.",
+            details: error.message || "Please try again."
+        });
+    }
+}
+
+window.premiumUnlock = premiumUnlock;
 const FREE_USER_LIMIT = 10;
 let currentField = "totalScore";
 let latestLeaderboard = null;
