@@ -14,7 +14,7 @@ import {
 FUNDSIQ API
 ========================================================================= */
 
-const API_URL = "https://fundsiq-api.onrender.com";
+const API_URL = "https://fundsiq-api-staging.onrender.com";
 
 
 /* =========================================================================
