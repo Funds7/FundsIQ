@@ -20,7 +20,6 @@ import {
 
 import {
     doc,
-    updateDoc,
     collection,
     query,
     orderBy,
@@ -369,27 +368,8 @@ function subscribeToMarketerData(user) {
                 // REPAIR OLD REFERRAL LINK
                 // =============================================================
 
-                if (
-                    referralCode &&
-                    data.referralLink !== referralLink
-                ) {
-
-                    updateDoc(
-                        userRef,
-                        {
-                            referralLink:
-                                referralLink
-                        }
-                    ).catch(error => {
-
-                        console.error(
-                            "Referral link repair failed:",
-                            error
-                        );
-
-                    });
-
-                }
+                // Referral links are created and maintained by the trusted backend.
+                // Keep a locally derived display link; never write profile fields from this page.
 
 
                 // =============================================================
