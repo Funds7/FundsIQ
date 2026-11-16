@@ -100,6 +100,15 @@ async function spendCoins(amount, reason = "Purchase") {
         return false;
     }
 
+    // Premium users bypass coin transactions, including while offline,
+    // after their entitlement has previously been verified by the server.
+    const premium = await isPremiumUser();
+
+    if (premium) {
+        console.log(`Premium access granted without coin deduction: ${reason}`);
+        return true;
+    }
+
     const userRef = doc(db, "users", user.uid);
 
     try {
