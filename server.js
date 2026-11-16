@@ -496,6 +496,147 @@ app.get(
 
 
 // ======================================================
+// SECURE COIN BALANCE AND SPENDING
+// ======================================================
+
+// Only server-defined actions are accepted. Never trust a price or reward
+// amount supplied by the browser.
+const COIN_ACTIONS = Object.freeze({
+  exam_attempt: 10
+});
+
+app.get(
+  "/api/coins/balance",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const uid = req.firebaseUser.uid;
+      const userSnap = await db.collection("users").doc(uid).get();
+
+      if (!userSnap.exists) {
+        return res.status(404).json({ success: false, msg: "User account not found." });
+      }
+
+      const userData = userSnap.data() || {};
+      const balance = Number(userData.coins || 0);
+
+      return res.json({
+        success: true,
+        balance: Number.isFinite(balance) && balance >= 0 ? balance : 0,
+        premium: userData.premium === true
+      });
+    } catch (error) {
+      console.error("Coin balance error:", error);
+      return res.status(500).json({ success: false, msg: "Unable to load coin balance." });
+    }
+  }
+);
+
+app.post(
+  "/api/coins/spend",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const uid = req.firebaseUser.uid;
+      const action = String(req.body?.action || "");
+      const requestId = String(req.body?.requestId || "");
+
+      if (!Object.prototype.hasOwnProperty.call(COIN_ACTIONS, action)) {
+        return res.status(400).json({ success: false, msg: "Invalid coin purchase action." });
+      }
+
+      if (!/^[A-Za-z0-9_-]{12,100}$/.test(requestId)) {
+        return res.status(400).json({ success: false, msg: "A valid transaction request ID is required." });
+      }
+
+      const cost = COIN_ACTIONS[action];
+      const userRef = db.collection("users").doc(uid);
+      const transactionRef = db.collection("coinTransactions").doc(uid + "_" + requestId);
+
+      const result = await db.runTransaction(async transaction => {
+        const [userSnap, transactionSnap] = await Promise.all([
+          transaction.get(userRef),
+          transaction.get(transactionRef)
+        ]);
+
+        if (!userSnap.exists) {
+          return { success: false, status: 404, msg: "User account not found." };
+        }
+
+        const userData = userSnap.data() || {};
+
+        if (transactionSnap.exists) {
+          const previous = transactionSnap.data() || {};
+          if (previous.uid !== uid || previous.action !== action) {
+            return { success: false, status: 409, msg: "Transaction request ID has already been used." };
+          }
+          return {
+            success: true,
+            duplicate: true,
+            premium: previous.premium === true,
+            balance: Number(userData.coins || 0)
+          };
+        }
+
+        if (userData.premium === true) {
+          transaction.create(transactionRef, {
+            uid,
+            action,
+            premium: true,
+            amount: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          return {
+            success: true,
+            premium: true,
+            balance: Number(userData.coins || 0)
+          };
+        }
+
+        const currentBalance = Number(userData.coins || 0);
+        if (!Number.isFinite(currentBalance) || currentBalance < cost) {
+          return {
+            success: false,
+            status: 402,
+            msg: "Insufficient coins.",
+            required: cost,
+            balance: Number.isFinite(currentBalance) ? currentBalance : 0
+          };
+        }
+
+        const newBalance = currentBalance - cost;
+        transaction.update(userRef, { coins: newBalance });
+        transaction.create(transactionRef, {
+          uid,
+          action,
+          premium: false,
+          amount: cost,
+          balanceAfter: newBalance,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        return {
+          success: true,
+          premium: false,
+          balance: newBalance
+        };
+      });
+
+      if (!result.success) {
+        return res.status(result.status || 400).json(result);
+      }
+
+      return res.json(result);
+    } catch (error) {
+      console.error("Coin spending error:", error);
+      return res.status(500).json({ success: false, msg: "Unable to complete coin payment." });
+    }
+  }
+);
+
+
+// ======================================================
 // INITIALIZE PREMIUM PAYMENT
 // ======================================================
 
