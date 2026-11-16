@@ -5,16 +5,7 @@ import {
     createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-import {
-    doc,
-    serverTimestamp,
-    collection,
-    query,
-    where,
-    getDocs,
-    runTransaction,
-    increment
-} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+const API_URL = "https://fundsiq-api.onrender.com";
 
 "use strict";
 
@@ -98,137 +89,42 @@ if (signupBtn) {
 
 
             // ==================================
-            // FIND REFERRER
+            // CREATE PROFILE AND ISSUE COINS SECURELY
             // ==================================
 
-            let referrerUid = null;
-            let validReferralCode = "";
+            const idToken = await user.getIdToken(true);
+            const profileResponse = await fetch(
+                `${API_URL}/api/auth/profile/initialize`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${idToken}`
+                    },
+                    body: JSON.stringify({
+                        name,
+                        referralCode
+                    })
+                }
+            );
 
-            if (referralCode) {
+            const profileData = await profileResponse.json();
 
-                const usersRef = collection(db, "users");
-
-                const referralQuery = query(
-                    usersRef,
-                    where("referralCode", "==", referralCode)
+            if (!profileResponse.ok || profileData.success !== true) {
+                throw new Error(
+                    profileData.msg || "Your FundsIQ profile could not be created."
                 );
-
-                const referralSnapshot = await getDocs(referralQuery);
-
-                if (!referralSnapshot.empty) {
-
-                    const referrerDoc = referralSnapshot.docs[0];
-
-                    if (referrerDoc.id !== user.uid) {
-                        referrerUid = referrerDoc.id;
-                        validReferralCode = referralCode;
-                    }
-                }
             }
 
-
-            // ==================================
-            // FIRESTORE TRANSACTION
-            // ==================================
-
-            await runTransaction(db, async (transaction) => {
-
-                const newUserRef = doc(db, "users", user.uid);
-
-                // CREATE NEW USER
-
-                transaction.set(newUserRef, {
-
-                    uid: user.uid,
-                    name: name,
-                    email: email,
-
-                    // WELCOME BONUS
-                    coins: 20,
-
-                    role: "student",
-                    completedTests: 0,
-                    totalScore: 0,
-                    studyStreak: 0,
-
-                    // REFERRAL INFORMATION
-                    totalReferrals: 0,
-                    referredBy: validReferralCode,
-
-                    // PREMIUM / COMMISSION
-                    totalEarnings: 0,
-                    commissionBalance: 0,
-                    premiumReferrals: 0,
-
-                    createdAt: serverTimestamp()
-
-                });
-
-
-                // REWARD REFERRER
-
-                if (referrerUid) {
-
-                    const referrerRef = doc(db, "users", referrerUid);
-
-                    transaction.update(referrerRef, {
-
-                        coins: increment(10),
-                        totalReferrals: increment(1)
-
-                    });
-
-
-                    // REFERRAL ACTIVITY
-
-                    const activityRef = doc(
-                        collection(db, "users", referrerUid, "referrals")
-                    );
-
-                    transaction.set(activityRef, {
-
-                        friendName: name,
-                        value: "+10 🪙",
-                        type: "coin_referral",
-                        referredUserId: user.uid,
-                        referralCode: validReferralCode,
-                        timestamp: serverTimestamp()
-
-                    });
-
-                }
-
+            await showModal({
+                type: "success",
+                title: "Account Created!",
+                message: "Welcome to FundsIQ! Your account is ready.",
+                details: profileData.referralApplied
+                    ? "You received 20 welcome coins 🪙\n\nYour referral was successfully recorded. Your referrer earned 10 coins 🪙"
+                    : "You received 20 welcome coins 🪙",
+                buttonText: "Continue to Login"
             });
-
-
-            // ==================================
-            // SUCCESS MESSAGE
-            // ==================================
-
-            if (referrerUid) {
-
-                await showModal({
-                    type: "success",
-                    title: "Account Created!",
-                    message: "Welcome to FundsIQ! Your account is ready.",
-                    details:
-                        "You received 20 welcome coins 🪙\n\n" +
-                        "Your referral was successfully recorded.\n" +
-                        "Your referrer earned 10 coins 🪙",
-                    buttonText: "Continue to Login"
-                });
-
-            } else {
-
-                await showModal({
-                    type: "success",
-                    title: "Account Created!",
-                    message: "Welcome to FundsIQ! Your account is ready.",
-                    details: "You received 20 welcome coins 🪙",
-                    buttonText: "Continue to Login"
-                });
-
-            }
 
 
             // ==================================
