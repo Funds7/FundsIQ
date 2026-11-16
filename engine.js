@@ -205,6 +205,33 @@ async function restoreActiveExam() {
 }
 
 window.addEventListener("pagehide", saveActiveExam);
+
+// Some mobile browsers restore a page from the back-forward cache when the
+// student returns with the browser Back button. That is still leaving the
+// exam, not refreshing it, so end the attempt and show setup on that return.
+window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+
+    const key = activeExamKey();
+    if (key) localStorage.removeItem(key);
+
+    clearInterval(timerInterval);
+    timerInterval = null;
+    questions = [];
+    currentQuestion = 0;
+    answers = [];
+    review = [];
+    timeLeft = 0;
+    examStartTime = 0;
+    examSessionId = "";
+    isSubmitting = false;
+
+    const examScreen = document.getElementById("exam-screen");
+    const setupScreen = document.getElementById("setup-screen");
+    if (examScreen) examScreen.style.display = "none";
+    if (setupScreen) setupScreen.style.display = "block";
+});
+
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") saveActiveExam();
 });
