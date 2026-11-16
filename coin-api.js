@@ -1,6 +1,6 @@
 import { auth } from "./firebase.js";
 
-const API_URL = "https://fundsiq-api.onrender.com";
+const API_URL = "https://fundsiq-api-staging.onrender.com";
 
 export async function getServerCoinBalance() {
     const user = auth.currentUser;
