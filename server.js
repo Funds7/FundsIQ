@@ -3497,6 +3497,99 @@ app.get(
 
 
 // ======================================================
+// SECURE MARKETER REGISTRATION
+// ======================================================
+
+app.post(
+  "/api/marketer/register",
+  verifyFirebaseToken,
+  async (req, res) => {
+    const uid = req.firebaseUser.uid;
+    const userRef = db.collection("users").doc(uid);
+
+    try {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const referralCode = "FUNDS-" + crypto.randomBytes(4).toString("hex").toUpperCase();
+        const codeRef = db.collection("referralCodes").doc(referralCode);
+        const result = await db.runTransaction(async transaction => {
+          const userSnap = await transaction.get(userRef);
+          if (!userSnap.exists) {
+            return { error: "User profile not found. Please refresh your account and try again." };
+          }
+
+          const userData = userSnap.data() || {};
+          if (userData.isMarketer === true && userData.referralCode) {
+            return {
+              alreadyRegistered: true,
+              referralCode: String(userData.referralCode),
+              referralLink: String(userData.referralLink || "")
+            };
+          }
+
+          const codeSnap = await transaction.get(codeRef);
+          if (codeSnap.exists) return { collision: true };
+
+          const origin = String(req.headers.origin || "").replace(/\/$/, "");
+          const allowedOrigins = new Set([
+            "https://funds7.github.io",
+            "https://fundsiq.com.ng",
+            "https://www.fundsiq.com.ng"
+          ]);
+          const safeOrigin = allowedOrigins.has(origin)
+            ? origin
+            : "https://funds7.github.io";
+          const referralLink = safeOrigin + "/signup.html?ref=" + encodeURIComponent(referralCode);
+          const now = admin.firestore.FieldValue.serverTimestamp();
+
+          transaction.create(codeRef, {
+            uid,
+            referralCode,
+            referralLink,
+            totalReferrals: 0,
+            totalPremiumSales: 0,
+            totalCommission: 0,
+            clicks: 0,
+            conversions: 0,
+            createdAt: now
+          });
+
+          transaction.set(userRef, {
+            isMarketer: true,
+            referralCode,
+            referralLink,
+            marketerBalance: 0,
+            totalEarnings: 0,
+            totalReferrals: 0,
+            premiumReferrals: 0,
+            marketerJoinedAt: now
+          }, { merge: true });
+
+          return { alreadyRegistered: false, referralCode, referralLink };
+        });
+
+        if (result.collision) continue;
+        if (result.error) {
+          return res.status(404).json({ success: false, msg: result.error });
+        }
+        return res.json({ success: true, ...result });
+      }
+
+      return res.status(503).json({
+        success: false,
+        msg: "Could not generate a unique referral code. Please try again."
+      });
+    } catch (error) {
+      console.error("Secure marketer registration error:", error);
+      return res.status(500).json({
+        success: false,
+        msg: "Marketer registration failed. Please try again."
+      });
+    }
+  }
+);
+
+
+// ======================================================
 // SECURE LEADERBOARD API
 // ======================================================
 
