@@ -1,4 +1,5 @@
-import { auth, db } from "./firebase.js";
+import { auth } from "./firebase.js";
+import { getServerCoinBalance, spendCoinsOnServer } from "./coin-api.js";
 import { showModal } from "./modals.js";
 import { isPremiumUser } from "./premium-access.js";
 
@@ -6,13 +7,7 @@ import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-import {
-    doc,
-    getDoc,
-    updateDoc,
-    increment,
-    runTransaction
-} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+
 
 
 // ==========================================
@@ -20,26 +15,11 @@ import {
 // ==========================================
 
 async function getCoins() {
-
-    const user = auth.currentUser;
-
-    if (!user) return 0;
-
+    if (!auth.currentUser) return 0;
     try {
-
-        const userRef = doc(db, "users", user.uid);
-        const snap = await getDoc(userRef);
-
-        if (!snap.exists()) return 0;
-
-        const coins = Number(snap.data().coins ?? 0);
-
-        return Number.isFinite(coins) ? coins : 0;
-
+        return await getServerCoinBalance();
     } catch (error) {
-
         console.error("Get coins error:", error);
-
         return 0;
     }
 }
@@ -72,150 +52,48 @@ async function updateCoinDisplay() {
 // SPEND COINS
 // ==========================================
 
-async function spendCoins(amount, reason = "Purchase") {
-
+async function spendCoins(amount, reason = "Exam attempt") {
     const user = auth.currentUser;
 
     if (!user) {
-
         await showModal({
             type: "warning",
             title: "Login Required",
             message: "Please log in to use your coins."
         });
-
         return false;
     }
 
-    amount = Number(amount);
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-
-        await showModal({
-            type: "error",
-            title: "Invalid Amount",
-            message: "The coin amount is not valid."
-        });
-
-        return false;
-    }
-
-    // Premium users bypass coin transactions, including while offline,
-    // after their entitlement has previously been verified by the server.
-    const premium = await isPremiumUser();
-
-    if (premium) {
-        console.log(`Premium access granted without coin deduction: ${reason}`);
-        return true;
-    }
-
-    const userRef = doc(db, "users", user.uid);
-
+    // Online spending is always decided by the backend. The cached Premium
+    // entitlement is used only for the previously verified offline Premium path.
     try {
-
-        const result = await runTransaction(
-            db,
-            async (transaction) => {
-
-                const snap = await transaction.get(userRef);
-
-                if (!snap.exists()) {
-
-                    return {
-                        success: false,
-                        message: "Your user profile could not be found."
-                    };
-                }
-
-                const userData = snap.data();
-
-                // PREMIUM USERS DO NOT PAY COINS
-
-                const isPremium =
-                    userData.premium === true ||
-                    userData.premium === "true";
-
-                if (isPremium) {
-
-                    return {
-                        success: true,
-                        premium: true
-                    };
-                }
-
-                // FREE USER COIN CHECK
-
-                const currentCoins = Number(
-                    userData.coins ?? 0
-                );
-
-                if (
-                    !Number.isFinite(currentCoins) ||
-                    currentCoins < amount
-                ) {
-
-                    return {
-                        success: false,
-                        message: `You need ${amount} coins, but your current balance is ${currentCoins} coins.`
-                    };
-                }
-
-                // DEDUCT COINS
-
-                transaction.update(userRef, {
-                    coins: increment(-amount)
-                });
-
-                return {
-                    success: true,
-                    premium: false
-                };
-
-            }
-        );
-
-        if (!result.success) {
-
-            await showModal({
-                type: "warning",
-                title: "Insufficient Coins",
-                message: result.message,
-                details: "Earn more coins by watching rewarded ads or inviting friends."
-            });
-
-            return false;
-        }
-
-        updateCoinDisplay().catch(error => {
-            console.error("Coin display refresh error:", error);
-        });
-
-        if (result.premium) {
-
-            console.log(
-                `Premium access granted without coin deduction: ${reason}`
-            );
-
-        } else {
-
-            console.log(
-                `${amount} coins spent: ${reason}`
-            );
-        }
-
+        const result = await spendCoinsOnServer(amount, reason);
+        updateCoinDisplay().catch(error => console.error("Coin display refresh error:", error));
+        console.log(result.premium ? "Premium exam access granted." : "10 coins spent for an exam attempt.");
         return true;
-
     } catch (error) {
+        let premiumOffline = false;
+        if (!navigator.onLine) {
+            try {
+                premiumOffline = await isPremiumUser();
+            } catch (_) {}
+        }
 
-        console.error("Spend coins error:", error);
+        if (premiumOffline) {
+            console.log("Previously verified Premium access granted offline.");
+            return true;
+        }
 
         await showModal({
-            type: "error",
-            title: "Payment Failed",
-            message: "Unable to complete your coin payment.",
-            details: "Please check your internet connection and try again."
+            type: error.status === 402 ? "warning" : "error",
+            title: error.status === 402 ? "Insufficient Coins" : "Coin Payment Failed",
+            message: error.status === 402
+                ? "You do not have enough coins for this exam attempt."
+                : (error.message || "Unable to verify your coin balance."),
+            details: error.status === 402
+                ? `Required: ${error.required || 10} coins. Balance: ${error.balance ?? "Unavailable"} coins.`
+                : "Please check your internet connection and try again."
         });
-
         return false;
     }
 }
@@ -225,68 +103,15 @@ async function spendCoins(amount, reason = "Purchase") {
 // ADD COINS
 // ==========================================
 
-async function rewardCoins(amount, reason = "Reward") {
-
-    const user = auth.currentUser;
-
-    if (!user) return false;
-
-    amount = Number(amount);
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-
-        console.error("Invalid reward amount.");
-
-        return false;
-    }
-
-    const userRef = doc(db, "users", user.uid);
-
-    try {
-
-        const snap = await getDoc(userRef);
-
-        if (!snap.exists()) {
-
-            await showModal({
-                type: "error",
-                title: "Profile Not Found",
-                message: "Your FundsIQ profile could not be found."
-            });
-
-            return false;
-        }
-
-        await updateDoc(userRef, {
-            coins: increment(amount)
-        });
-
-        updateCoinDisplay().catch(error => {
-            console.error("Coin display refresh error:", error);
-        });
-
-        await showModal({
-            type: "success",
-            title: "Coins Received!",
-            message: `You've received ${amount} coins.`,
-            details: reason
-        });
-
-        return true;
-
-    } catch (error) {
-
-        console.error("Reward coins error:", error);
-
-        await showModal({
-            type: "error",
-            title: "Reward Failed",
-            message: "Unable to add coins to your account.",
-            details: "Please check your internet connection and try again."
-        });
-
-        return false;
-    }
+// Client-side reward amounts are no longer accepted. Welcome, referral and
+// rewarded-ad credits must be issued by their verified server-side events.
+async function rewardCoins() {
+    await showModal({
+        type: "info",
+        title: "Rewards Temporarily Unavailable",
+        message: "Coin rewards are being moved to verified server-side processing. Your balance cannot be changed from this screen."
+    });
+    return false;
 }
 
 
@@ -306,25 +131,23 @@ async function startPractice() {
 
 
 // ==========================================
-// LEADERBOARD UNLOCK
+// LEADERBOARD ACCESS
 // ==========================================
 
 async function unlockWithCoins() {
+    const premium = await isPremiumUser();
 
-    const paid = await spendCoins(50, "Leaderboard Access");
-
-    if (paid) {
-
+    if (premium) {
         localStorage.setItem("leaderboardAccess", "true");
-
-        await showModal({
-            type: "success",
-            title: "Leaderboard Activated!",
-            message: "You have successfully unlocked leaderboard access."
-        });
-
         location.reload();
+        return;
     }
+
+    await showModal({
+        type: "info",
+        title: "Premium Required",
+        message: "Free accounts can view the limited leaderboard. Premium members can view the complete leaderboard and their exact rank."
+    });
 }
 
 
