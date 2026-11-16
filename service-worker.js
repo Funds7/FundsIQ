@@ -20,7 +20,6 @@ const APP_FILES = [
   "./coins.js",
   "./coin-api.js",
   "./premium-access.js",
-      "./coin-api.js",
 
   // Styles
   "./style.css",
@@ -64,7 +63,7 @@ const APP_FILES = [
   // Examination
   "./exam.html",
   "./engine.js",
-      "./exam-sync.js",
+  "./exam-sync.js",
   "./questions.js",
 
   // Results
