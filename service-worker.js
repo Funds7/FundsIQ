@@ -1,4 +1,4 @@
-const CACHE_NAME = "fundsiq-offline-v11";
+const CACHE_NAME = "fundsiq-staging-offline-v1";
 
 // Essential FundsIQ application files
 const APP_FILES = [
