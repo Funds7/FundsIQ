@@ -1,4 +1,4 @@
-const CACHE_NAME = "fundsiq-offline-v9";
+const CACHE_NAME = "fundsiq-offline-v10";
 
 // Essential FundsIQ application files
 const APP_FILES = [
@@ -18,7 +18,9 @@ const APP_FILES = [
   // Firebase and coins
   "./firebase.js",
   "./coins.js",
+  "./coin-api.js",
   "./premium-access.js",
+      "./coin-api.js",
 
   // Styles
   "./style.css",
