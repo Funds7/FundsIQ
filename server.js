@@ -93,13 +93,21 @@ const MINIMUM_WITHDRAWAL_NAIRA =
   2000;
 
 const FRONTEND_URL =
+  process.env.FRONTEND_URL ||
   "https://funds7.github.io/FundsIQ/";
 
+const API_BASE_URL =
+  process.env.API_BASE_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  "https://fundsiq-api.onrender.com";
+
 const PAYSTACK_CALLBACK_URL =
-  "https://fundsiq-api.onrender.com/api/payments/paystack/callback";
+  process.env.PAYSTACK_CALLBACK_URL ||
+  API_BASE_URL.replace(/\\/$/, "") + "/api/payments/paystack/callback";
 
 const PAYSTACK_WEBHOOK_URL =
-  "https://fundsiq-api.onrender.com/api/payments/paystack/webhook";
+  process.env.PAYSTACK_WEBHOOK_URL ||
+  API_BASE_URL.replace(/\\/$/, "") + "/api/payments/paystack/webhook";
 
 
 // ======================================================
@@ -159,7 +167,7 @@ app.get(
         ),
 
       webhook:
-        PAYSTACK_WEBHOOK_URL,
+        PAYSTACK_SECRET_KEY ? PAYSTACK_WEBHOOK_URL : null,
 
       premiumPrice:
         PREMIUM_PRICE_NAIRA,
