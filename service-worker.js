@@ -18,6 +18,7 @@ const APP_FILES = [
   // Firebase and coins
   "./firebase.js",
   "./coins.js",
+  "./premium-access.js",
 
   // Styles
   "./style.css",
