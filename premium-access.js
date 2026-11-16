@@ -56,6 +56,11 @@ export async function isPremiumUser() {
             cache: "no-store"
         });
 
+        if (response.status === 404) {
+            clearVerifiedPremiumCache(user.uid);
+            return false;
+        }
+
         if (!response.ok) {
             throw new Error(`Premium verification failed (HTTP ${response.status}).`);
         }
