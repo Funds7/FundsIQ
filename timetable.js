@@ -110,8 +110,11 @@ function subscribeToFirestoreTimetable(user) {
             });
         });
 
-        // Store into runtime state
-        State.classes = localItems;
+        // Keep each timetable category separate; legacy records remain Personal.
+        State.classes = localItems.filter(item => !item.type || item.type === 'personal');
+        State.lectureTimetable = localItems.filter(item => item.type === 'lecture');
+        State.examTimetable = localItems.filter(item => item.type === 'exam');
+        saveLocalTimetable();
         toggleSkeleton(false);
         renderSchedule();
         evaluateSmartSchedule();
@@ -645,7 +648,7 @@ function updateDashboardMetrics(total, today) {
 // Global modal triggers
 window.editClassModal = function(id) {
     const modal = document.getElementById("class-modal");
-    const item = State.classes.find(c => c.id === id);
+    const item = [...State.classes, ...State.lectureTimetable, ...State.examTimetable].find(c => c.id === id);
     if (!modal || !item) return;
 
     State.selectedEditId = id;
@@ -655,10 +658,14 @@ window.editClassModal = function(id) {
     document.getElementById("form-course-title").value = item.courseTitle;
     document.getElementById("form-lecturer").value = item.lecturer;
     document.getElementById("form-venue").value = item.venue;
-    document.getElementById("form-day").value = item.day;
+    document.getElementById("form-day").value = item.day || "Monday";
+    const dateField = document.getElementById("form-exam-date");
+    if (dateField) dateField.value = item.date || "";
     document.getElementById("form-start-time").value = item.startTime;
     document.getElementById("form-end-time").value = item.endTime;
     document.getElementById("form-description").value = item.description || "";
+    document.getElementById("form-day-group").style.display = item.type === "exam" ? "none" : "";
+    document.getElementById("form-exam-date-group").style.display = item.type === "exam" ? "" : "none";
 
     modal.classList.add("active");
 };
@@ -700,6 +707,10 @@ document.addEventListener("DOMContentLoaded", () => {
             tabButtons.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             State.activeTab = btn.getAttribute("data-tab");
+            const examMode = State.activeTab === 'exam';
+            document.getElementById('form-day-group').style.display = examMode ? 'none' : '';
+            document.getElementById('form-exam-date-group').style.display = examMode ? '' : 'none';
+            document.getElementById('filter-day').disabled = examMode;
             
             // Adjust search query and render state
             renderSchedule();
@@ -744,7 +755,10 @@ document.addEventListener("DOMContentLoaded", () => {
             State.selectedEditId = null;
             document.getElementById("class-form").reset();
             document.getElementById("form-edit-id").value = "";
-            document.getElementById("modal-title").textContent = "Schedule New Class";
+            const examMode = State.activeTab === "exam";
+            document.getElementById("modal-title").textContent = examMode ? "Add Exam" : State.activeTab === "lecture" ? "Add Lecture" : "Schedule New Class";
+            document.getElementById("form-day-group").style.display = examMode ? "none" : "";
+            document.getElementById("form-exam-date-group").style.display = examMode ? "" : "none";
             classModal.classList.add("active");
         });
     }
@@ -769,13 +783,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 courseTitle: document.getElementById("form-course-title").value.trim(),
                 lecturer: document.getElementById("form-lecturer").value.trim(),
                 venue: document.getElementById("form-venue").value.trim(),
-                day: document.getElementById("form-day").value,
+                type: State.activeTab,
+                day: State.activeTab === "exam" ? "" : document.getElementById("form-day").value,
+                date: State.activeTab === "exam" ? document.getElementById("form-exam-date").value : "",
+                duration: State.activeTab === "exam" ? document.getElementById("form-duration").value.trim() : "",
                 startTime: document.getElementById("form-start-time").value,
                 endTime: document.getElementById("form-end-time").value,
                 description: document.getElementById("form-description").value.trim()
             };
 
             try {
+                if (State.activeTab === "exam" && !data.date) { showToast("Please choose the exam date.", "error"); return; }
                 await saveClassSession(data);
                 classModal.classList.remove("active");
             } catch (err) {
