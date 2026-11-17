@@ -324,21 +324,11 @@ function createClassCard(item) {
             </div>
             ${item.description ? `<p class="class-desc">${item.description}</p>` : ""}
             <div class="card-actions-row">
-                ${State.activeTab === 'personal' ? `
-                    <button class="mini-pill-btn ${isAttended ? 'attended-pill' : ''}" onclick="window.triggerProductivity('${item.id}')">
-                        ${isAttended ? '✓ Attended' : '📝 Notes & Tasks'}
-                    </button>
-                    <div class="edit-actions">
-                        <button class="icon-action-btn" onclick="window.editClassModal('${item.id}')" title="Edit Class">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                        </button>
-                        <button class="icon-action-btn delete-icon" onclick="window.triggerDeleteModal('${item.id}')" title="Delete Class">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 3 21 3 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
-                    </div>
-                ` : `
-                    
-                `}
+                ${State.activeTab === 'personal' ? `<button class="mini-pill-btn ${isAttended ? 'attended-pill' : ''}" onclick="window.triggerProductivity('${item.id}')">${isAttended ? '✓ Attended' : '📝 Notes & Tasks'}</button>` : ''}
+                ${State.activeTab !== 'exam' ? `<div class="edit-actions">
+                    <button class="icon-action-btn" onclick="window.editClassModal('${item.id}')" title="Edit Schedule">✎</button>
+                    <button class="icon-action-btn delete-icon" onclick="window.triggerDeleteModal('${item.id}')" title="Delete Schedule">×</button>
+                </div>` : ''}
             </div>
         </div>
     `;
