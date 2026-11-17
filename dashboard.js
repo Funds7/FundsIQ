@@ -8,6 +8,7 @@ import {
 import {
     doc,
     getDoc,
+    getDocFromCache,
     collection,
     query,
     orderBy,
@@ -152,44 +153,33 @@ function loadUser() {
         }
 
 
-        // Retrieve the latest available Firestore profile
+        // Start notifications immediately; profile refresh must not delay
+        // the dashboard's interactive notification controls.
+        setupNotifications(uid);
 
+        const userRef = doc(db, "users", uid);
+
+        // Paint any Firestore-cached profile immediately, then refresh it
+        // from the server in the background.
         try {
-
-            const userRef =
-                doc(db, "users", uid);
-
-            const userSnap =
-                await getDoc(userRef);
-
-            if (userSnap.exists()) {
-
-                displayUserProfile(
-                    userSnap.data(),
-                    uid
-                );
-
-            } else {
-
-                console.warn(
-                    "User profile not found."
-                );
-
+            const cachedSnap = await getDocFromCache(userRef);
+            if (cachedSnap.exists()) {
+                displayUserProfile(cachedSnap.data(), uid);
             }
-
-        } catch (error) {
-
-            console.warn(
-                "Using available offline profile:",
-                error
-            );
-
+        } catch (cacheError) {
+            // A first-time visitor may not have this profile cached yet.
         }
 
-
-        // Start notifications independently
-
-        setupNotifications(uid);
+        try {
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                displayUserProfile(userSnap.data(), uid);
+            } else {
+                console.warn("User profile not found.");
+            }
+        } catch (error) {
+            console.warn("Using available offline profile:", error);
+        }
 
     });
 
