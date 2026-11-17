@@ -205,6 +205,22 @@ async function deleteClassSession(id) {
 }
 
 function loadOfflineMockData() { loadLocalTimetable(); renderSchedule(); evaluateSmartSchedule(); }
+async function syncPendingTimetableChanges() {
+    const user = auth.currentUser;
+    if (!user || !navigator.onLine) return;
+    const key = 'fundsiq_timetable_queue:' + user.uid;
+    const pending = JSON.parse(localStorage.getItem(key) || '[]');
+    const failed = [];
+    for (const op of pending) {
+        try {
+            const ref = doc(db, 'users/' + user.uid + '/timetable', op.id);
+            if (op.action === 'delete') await deleteDoc(ref); else await setDoc(ref, op.data);
+        } catch (error) { failed.push(op); }
+    }
+    localStorage.setItem(key, JSON.stringify(failed));
+    if (pending.length && !failed.length) showToast('Offline timetable changes synced.');
+}
+
 // =========================================================================
 // 7. COMPACT RENDERING LOGIC (DAILY, TIMELINE, WEEKLY, EXAM)
 // =========================================================================
@@ -915,6 +931,8 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    window.addEventListener("online", syncPendingTimetableChanges);
+    if (navigator.onLine) syncPendingTimetableChanges();
     // Start background clock processes
     startClockTicks();
 });
