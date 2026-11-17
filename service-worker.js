@@ -1,4 +1,4 @@
-const CACHE_NAME = "fundsiq-staging-offline-v3";
+const CACHE_NAME = "fundsiq-staging-offline-v4";
 
 // Essential FundsIQ application files
 const APP_FILES = [
@@ -90,6 +90,19 @@ const APP_FILES = [
   "./result.html",
   "./result.js",
   "./result.css",
+
+  // Additional learning and support pages
+  "./chapters.html",
+  "./chapter-test.html",
+  "./contact.html",
+  "./corrections.html",
+  "./corrections.css",
+  "./corrections.js",
+  "./performance.html",
+  "./performance.css",
+  "./performance.js",
+  "./privacy.html",
+  "./terms.html",
 
   // App icon used by installed PWA
   "./icons/icon-512.png"
