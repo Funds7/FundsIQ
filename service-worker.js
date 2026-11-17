@@ -1,6 +1,5 @@
-const CACHE_NAME = "fundsiq-offline-v8";
+const CACHE_NAME = "fundsiq-offline-v14";
 
-// Essential FundsIQ application files
 const APP_FILES = [
 
   // Main pages
@@ -18,11 +17,23 @@ const APP_FILES = [
   // Firebase and coins
   "./firebase.js",
   "./coins.js",
+  "./coin-api.js",
+  "./premium-access.js",
+  "./timetable.html",
+  "./timetable.js",
+  "./timetable.css",
 
   // Styles
   "./style.css",
   "./more.css",
   "./components.css",
+
+  // Leaderboard
+  "./leaderboard.html",
+  "./leaderboard.js",
+  "./leaderboard.css",
+  "./modals.js",
+  "./modals.css",
 
   // Profile
   "./profile.html",
@@ -54,12 +65,8 @@ const APP_FILES = [
   // Examination
   "./exam.html",
   "./engine.js",
+      "./exam-sync.js",
   "./questions.js",
-
-  // Timetable
-  "./timetable.html",
-  "./timetable.js",
-  "./timetable.css",
 
   // Results
   "./result.html",
@@ -67,168 +74,100 @@ const APP_FILES = [
   "./result.css"
 ];
 
-
-// ==========================================
-// INSTALL SERVICE WORKER
-// ==========================================
-
+// Install: cache the app shell in parallel so first setup is faster.
 self.addEventListener("install", event => {
-
   event.waitUntil((async () => {
-
     const cache = await caches.open(CACHE_NAME);
 
-    for (const file of APP_FILES) {
-
+    await Promise.all(APP_FILES.map(async file => {
       try {
-
-        const request = new Request(
-          new URL(file, self.location.href),
-          { cache: "reload" }
-        );
-
+        const request = new Request(new URL(file, self.location.href), {
+          cache: "reload"
+        });
         const response = await fetch(request);
-
-        if (response.ok) {
-
-          await cache.put(request, response);
-
-        }
-
+        if (response.ok) await cache.put(request, response);
       } catch (error) {
-
-        console.warn(
-          "FundsIQ could not cache:",
-          file,
-          error
-        );
-
+        console.warn("FundsIQ could not cache:", file, error);
       }
-
-    }
+    }));
 
     await self.skipWaiting();
-
   })());
-
 });
 
-
-// ==========================================
-// ACTIVATE SERVICE WORKER
-// ==========================================
-
+// Remove old app caches after the new cache has been installed.
 self.addEventListener("activate", event => {
-
   event.waitUntil((async () => {
-
     const cacheNames = await caches.keys();
-
-    await Promise.all(
-
-      cacheNames
-
-        .filter(name =>
-          name.startsWith("fundsiq-offline-") &&
-          name !== CACHE_NAME
-        )
-
-        .map(name => caches.delete(name))
-
-    );
-
+    await Promise.all(cacheNames
+      .filter(name => name.startsWith("fundsiq-offline-") && name !== CACHE_NAME)
+      .map(name => caches.delete(name)));
     await self.clients.claim();
-
   })());
-
 });
-
-
-// ==========================================
-// FETCH AND OFFLINE FALLBACK
-// ==========================================
 
 self.addEventListener("fetch", event => {
-
   const request = event.request;
-
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-
-  const isAppFile =
-    url.origin === self.location.origin;
-
+  const isAppFile = url.origin === self.location.origin;
   const isFirebaseSDK =
     url.hostname === "www.gstatic.com" &&
     url.pathname.includes("/firebasejs/12.16.0/");
 
   if (!isAppFile && !isFirebaseSDK) return;
-
-  // Do not cache API requests
   if (url.pathname.includes("/api/")) return;
 
   event.respondWith((async () => {
-
     const cache = await caches.open(CACHE_NAME);
+    const isNavigation = request.mode === "navigate";
 
-    try {
+    // Pages stay network-first so users receive current HTML.
+    if (isNavigation) {
+      try {
+        const response = await fetch(request);
+        if (response.ok) await cache.put(request, response.clone());
+        return response;
+      } catch (error) {
+        const cachedPage = await cache.match(request);
+        if (cachedPage) return cachedPage;
 
-      const response = await fetch(request);
+        const cleanURL = new URL(request.url);
+        cleanURL.search = "";
+        const fallbackPage = await cache.match(cleanURL.href);
+        if (fallbackPage) return fallbackPage;
 
-      if (response.ok) {
-
-        await cache.put(
-          request,
-          response.clone()
+        return new Response(
+          "This FundsIQ page is not available offline. Please reconnect to the internet.",
+          { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } }
         );
-
       }
-
-      return response;
-
-    } catch (error) {
-
-      // Try exact cached request
-      const cachedResponse = await cache.match(request);
-
-      if (cachedResponse) {
-
-        return cachedResponse;
-
-      }
-
-      // Try URL without query parameters
-      const cleanURL = new URL(request.url);
-
-      cleanURL.search = "";
-
-      const fallback = await cache.match(
-        cleanURL.href
-      );
-
-      if (fallback) {
-
-        return fallback;
-
-      }
-
-      return new Response(
-
-        "This FundsIQ page is not available offline. Please reconnect to the internet.",
-
-        {
-          status: 503,
-
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8"
-          }
-        }
-
-      );
-
     }
 
-  })());
+    // Static files are served from cache immediately on repeat visits.
+    const cachedAsset = await cache.match(request);
+    if (cachedAsset) {
+      event.waitUntil(fetch(request).then(async response => {
+        if (response.ok) await cache.put(request, response.clone());
+      }).catch(() => {}));
+      return cachedAsset;
+    }
 
+    try {
+      const response = await fetch(request);
+      if (response.ok) await cache.put(request, response.clone());
+      return response;
+    } catch (error) {
+      const cleanURL = new URL(request.url);
+      cleanURL.search = "";
+      const fallbackAsset = await cache.match(cleanURL.href);
+      if (fallbackAsset) return fallbackAsset;
+
+      return new Response(
+        "This FundsIQ resource is not available offline. Please reconnect to the internet.",
+        { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+      );
+    }
+  })());
 });
