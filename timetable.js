@@ -323,7 +323,7 @@ function createClassCard(item) {
             </div>
             ${item.description ? `<p class="class-desc">${item.description}</p>` : ""}
             <div class="card-actions-row">
-                ${State.activeTab === 'personal' ? `
+                ${State.activeTab !== 'exam' ? `
                     <button class="mini-pill-btn ${isAttended ? 'attended-pill' : ''}" onclick="window.triggerProductivity('${item.id}')">
                         ${isAttended ? '✓ Attended' : '📝 Notes & Tasks'}
                     </button>
@@ -336,7 +336,7 @@ function createClassCard(item) {
                         </button>
                     </div>
                 ` : `
-                    <span class="mini-pill-btn" onclick="alert('Join Study Group for ${item.courseCode}!')">👥 Study Group</span>
+                    
                 `}
             </div>
         </div>
@@ -369,7 +369,7 @@ function renderExamTimeline(container, dataset) {
                     <div class="meta-item" style="grid-column: span 2;"><span class="meta-label">Venue:</span> ${exam.venue}</div>
                 </div>
                 <div class="card-actions-row">
-                    <button class="mini-pill-btn" style="border-color: var(--danger); color: var(--danger); background: none;" onclick="alert('Revision scope configured. Keep studying!')">🎯 Revision Scope</button>
+                    <div class="edit-actions"><button class="icon-action-btn" onclick="window.editClassModal('${exam.id}')" title="Edit Exam">✎</button><button class="icon-action-btn delete-icon" onclick="window.triggerDeleteModal('${exam.id}')" title="Delete Exam">×</button></div>
                 </div>
             </div>
         `;
@@ -652,7 +652,7 @@ window.editClassModal = function(id) {
     if (!modal || !item) return;
 
     State.selectedEditId = id;
-    document.getElementById("modal-title").textContent = "Modify Class Session";
+    document.getElementById("modal-title").textContent = item.type === "exam" ? "Edit Exam" : item.type === "lecture" ? "Edit Lecture" : "Modify Class Session";
     document.getElementById("form-edit-id").value = id;
     document.getElementById("form-course-code").value = item.courseCode;
     document.getElementById("form-course-title").value = item.courseTitle;
