@@ -1,4 +1,4 @@
-const CACHE_NAME = "fundsiq-staging-offline-v1";
+const CACHE_NAME = "fundsiq-staging-offline-v2";
 
 // Essential FundsIQ application files
 const APP_FILES = [
@@ -14,6 +14,21 @@ const APP_FILES = [
   "./dashboard.html",
   "./dashboard.js",
   "./dashboard.css",
+
+  // Academic tools
+  "./timetable.html",
+  "./timetable.js",
+  "./timetable.css",
+  "./cgpa.html",
+  "./cgpa.js",
+  "./cgpa.css",
+
+  // Marketer area
+  "./marketer.html",
+  "./marketer.js",
+  "./marketer-dashboard.html",
+  "./marketer-dashboard.js",
+  "./marketer-dashboard.css",
 
   // Firebase and coins
   "./firebase.js",
