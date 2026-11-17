@@ -145,53 +145,63 @@ function loadOfflineMockData() {
     evaluateSmartSchedule();
 }
 
+async function getListForTab(type = State.activeTab) {
+    if (type === 'lecture') return State.lectureTimetable;
+    if (type === 'exam') return State.examTimetable;
+    return State.classes;
+}
+
+function saveLocalTimetable() {
+    localStorage.setItem('fundsiq_timetable_v2:' + (State.user?.uid || 'guest'), JSON.stringify({personal: State.classes, lecture: State.lectureTimetable, exam: State.examTimetable}));
+}
+
+function loadLocalTimetable() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('fundsiq_timetable_v2:' + (State.user?.uid || 'guest')) || '{}');
+        State.classes = saved.personal || []; State.lectureTimetable = saved.lecture || []; State.examTimetable = saved.exam || [];
+        if (!State.user && !State.classes.length) {
+            const old = JSON.parse(localStorage.getItem('offline_timetable_mock') || '[]');
+            State.classes = old.filter(item => item && item.id !== 'm1'); saveLocalTimetable();
+        }
+    } catch (error) { console.warn('Local timetable could not be loaded', error); }
+}
+
 async function saveClassSession(data) {
+    const list = getListForTab();
+    const id = State.selectedEditId || (crypto.randomUUID ? crypto.randomUUID() : 'fiq_' + Date.now());
+    const record = {...data, type: State.activeTab, id, updatedAt: new Date().toISOString()};
+    const index = list.findIndex(item => item.id === id);
+    if (index >= 0) list[index] = {...list[index], ...record}; else list.push({...record, createdAt: new Date().toISOString()});
+    saveLocalTimetable();
     if (auth.currentUser) {
-        const path = `users/${auth.currentUser.uid}/timetable`;
-        if (State.selectedEditId) {
-            const docRef = doc(db, path, State.selectedEditId);
-            await updateDoc(docRef, data);
-            showToast("Class session updated successfully.");
-        } else {
-            await addDoc(collection(db, path), {
-                ...data,
-                createdAt: new Date().toISOString()
-            });
-            showToast("Class session created successfully.");
+        try { await setDoc(doc(db, 'users/' + auth.currentUser.uid + '/timetable', id), record); }
+        catch (error) {
+            const key = 'fundsiq_timetable_queue:' + auth.currentUser.uid;
+            const queue = JSON.parse(localStorage.getItem(key) || '[]'); queue.push({action:'set', id, data:record}); localStorage.setItem(key, JSON.stringify(queue));
+            showToast('Saved on this device. Cloud sync is pending.', 'error');
         }
-    } else {
-        // Local fallback writes
-        const key = "offline_timetable_mock";
-        if (State.selectedEditId) {
-            State.classes = State.classes.map(c => c.id === State.selectedEditId ? { ...c, ...data } : c);
-            showToast("Updated offline mock session.");
-        } else {
-            const newObj = { id: "m_" + Date.now(), ...data, createdAt: new Date().toISOString() };
-            State.classes.push(newObj);
-            showToast("Saved offline mock session.");
-        }
-        localStorage.setItem(key, JSON.stringify(State.classes));
-        renderSchedule();
-        evaluateSmartSchedule();
-    }
+    } else showToast(index >= 0 ? 'Schedule updated on this device.' : 'Schedule saved on this device.');
+    State.selectedEditId = null; renderSchedule(); evaluateSmartSchedule();
 }
 
 async function deleteClassSession(id) {
+    const list = [...State.classes, ...State.lectureTimetable, ...State.examTimetable];
+    const item = list.find(entry => entry.id === id);
+    const target = item ? getListForTab(item.type || 'personal') : getListForTab();
+    const index = target.findIndex(entry => entry.id === id); if (index >= 0) target.splice(index, 1);
+    saveLocalTimetable();
     if (auth.currentUser) {
-        const path = `users/${auth.currentUser.uid}/timetable`;
-        const docRef = doc(db, path, id);
-        await deleteDoc(docRef);
-        showToast("Class session deleted permanently.");
-    } else {
-        const key = "offline_timetable_mock";
-        State.classes = State.classes.filter(c => c.id !== id);
-        localStorage.setItem(key, JSON.stringify(State.classes));
-        showToast("Mock session deleted.");
-        renderSchedule();
-        evaluateSmartSchedule();
+        try { await deleteDoc(doc(db, 'users/' + auth.currentUser.uid + '/timetable', id)); }
+        catch (error) {
+            const key = 'fundsiq_timetable_queue:' + auth.currentUser.uid;
+            const queue = JSON.parse(localStorage.getItem(key) || '[]'); queue.push({action:'delete', id}); localStorage.setItem(key, JSON.stringify(queue));
+            showToast('Deleted here. Cloud deletion is pending.', 'error');
+        }
     }
+    State.selectedDeleteId = null; renderSchedule(); evaluateSmartSchedule();
 }
 
+function loadOfflineMockData() { loadLocalTimetable(); renderSchedule(); evaluateSmartSchedule(); }
 // =========================================================================
 // 7. COMPACT RENDERING LOGIC (DAILY, TIMELINE, WEEKLY, EXAM)
 // =========================================================================
