@@ -131,24 +131,9 @@ function subscribeToFirestoreTimetable(user) {
 }
 
 // Fallback logic for sandbox/offline deployments
-function loadOfflineMockData() {
-    const key = "offline_timetable_mock";
-    let data = localStorage.getItem(key);
+function loadOfflineMockData() { loadLocalTimetable(); renderSchedule(); evaluateSmartSchedule(); }
 
-    if (data) {
-        // Remove the old built-in demo GST entry, but preserve any classes the user created.
-        State.classes = JSON.parse(data).filter(item => item.id !== "m1");
-        localStorage.setItem(key, JSON.stringify(State.classes));
-    } else {
-        // Start with an empty personal timetable instead of inserting sample GST classes.
-        State.classes = [];
-        localStorage.setItem(key, JSON.stringify(State.classes));
-    }
-    renderSchedule();
-    evaluateSmartSchedule();
-}
-
-async function getListForTab(type = State.activeTab) {
+function getListForTab(type = State.activeTab) {
     if (type === 'lecture') return State.lectureTimetable;
     if (type === 'exam') return State.examTimetable;
     return State.classes;
@@ -339,7 +324,7 @@ function createClassCard(item) {
             </div>
             ${item.description ? `<p class="class-desc">${item.description}</p>` : ""}
             <div class="card-actions-row">
-                ${State.activeTab !== 'exam' ? `
+                ${State.activeTab === 'personal' ? `
                     <button class="mini-pill-btn ${isAttended ? 'attended-pill' : ''}" onclick="window.triggerProductivity('${item.id}')">
                         ${isAttended ? '✓ Attended' : '📝 Notes & Tasks'}
                     </button>
