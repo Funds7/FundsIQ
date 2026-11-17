@@ -45,19 +45,11 @@ const State = {
 // =========================================================================
 // 3. OFFICIAL DELSU LECTURE & EXAM DATABASES (FAST OFFLINE PRE-LOAD)
 // =========================================================================
-State.lectureTimetable = [
-    { id: "l1", courseCode: "GST 101", courseTitle: "Use of English & Library", lecturer: "Dr. Mrs. Ogisi", venue: "Convocation Hall", day: "Monday", startTime: "09:00", endTime: "11:00", description: "Use of Library module emphasis" },
-    { id: "l2", courseCode: "GST 102", courseTitle: "Philosophy & Human Existence", lecturer: "Prof. Edevbie", venue: "CLH 1", day: "Tuesday", startTime: "10:00", endTime: "12:00", description: "Ancient Greek Philosophy overview" },
-    { id: "l3", courseCode: "GST 103", courseTitle: "DELSU Culture & Ethics", lecturer: "Dr. Akpotor", venue: "Lecture Theatre 3", day: "Wednesday", startTime: "08:00", endTime: "10:00", description: "Ethical frameworks in DELSU environment" },
-    { id: "l4", courseCode: "GST 111", courseTitle: "Nigerian Peoples, Culture & Entrepreneurial Skills", lecturer: "Dr. Ogho", venue: "CLH 2", day: "Thursday", startTime: "12:00", endTime: "14:00", description: "Cultural diversity and enterprise" },
-    { id: "l5", courseCode: "GST 112", courseTitle: "History & Philosophy of Science and Technology", lecturer: "Prof. Enue", venue: "Science Lecture Theatre", day: "Friday", startTime: "14:00", endTime: "16:00", description: "Technological transformations through time" }
-];
+// No official lecture timetable is preloaded. Students create their own schedule.
+State.lectureTimetable = [];
 
-State.examTimetable = [
-    { id: "e1", courseCode: "GST 101", courseTitle: "Use of English & Library", date: "2026-08-10", startTime: "08:30", endTime: "10:30", venue: "DELSU CBT Center, Site 3", duration: "120 mins" },
-    { id: "e2", courseCode: "GST 102", courseTitle: "Philosophy & Human Existence", date: "2026-08-12", startTime: "11:00", endTime: "13:00", venue: "DELSU CBT Center, Site 3", duration: "120 mins" },
-    { id: "e3", courseCode: "GST 103", courseTitle: "DELSU Culture & Ethics", date: "2026-08-14", startTime: "13:30", endTime: "15:30", venue: "DELSU CBT Center, Site 3", duration: "120 mins" }
-];
+// No exam dates are preloaded. Students manage their own exam schedule.
+State.examTimetable = [];
 
 // =========================================================================
 // 4. UX ALERTS (TOAST NOTIFIER ENGINE)
@@ -143,9 +135,8 @@ function loadOfflineMockData() {
     if (data) {
         State.classes = JSON.parse(data);
     } else {
-        State.classes = [
-            { id: "m1", courseCode: "GST 103", courseTitle: "DELSU Culture & Ethics", lecturer: "Dr. Akpotor", venue: "CLH 1", day: "Monday", startTime: "08:30", endTime: "10:30", description: "Pre-reading Chapter 1 is required.", attended: false, notes: "", checklist: [] }
-        ];
+        // Start with an empty personal timetable instead of inserting sample GST classes.
+        State.classes = [];
         localStorage.setItem(key, JSON.stringify(State.classes));
     }
     renderSchedule();
