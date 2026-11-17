@@ -59,7 +59,12 @@ const APP_FILES = [
   // Results
   "./result.html",
   "./result.js",
-  "./result.css"
+  "./result.css",
+
+  // Timetable (including local-first schedule management)
+  "./timetable.html",
+  "./timetable.js",
+  "./timetable.css"
 ];
 
 
