@@ -133,7 +133,9 @@ function loadOfflineMockData() {
     let data = localStorage.getItem(key);
 
     if (data) {
-        State.classes = JSON.parse(data);
+        // Remove the old built-in demo GST entry, but preserve any classes the user created.
+        State.classes = JSON.parse(data).filter(item => item.id !== "m1");
+        localStorage.setItem(key, JSON.stringify(State.classes));
     } else {
         // Start with an empty personal timetable instead of inserting sample GST classes.
         State.classes = [];
