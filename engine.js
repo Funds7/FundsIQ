@@ -1286,8 +1286,10 @@ async function finishExam(autoSubmit = false) {
 // RETRY PENDING EXAM RESULT SYNCHRONIZATION
 // ==========================================
 
+let pendingExamSyncInProgress = false;
+
 async function syncPendingExamResults(user) {
-    if (!user || !navigator.onLine) return;
+    if (!user || !navigator.onLine || pendingExamSyncInProgress) return;
 
     const queueKey = "fundsiq_pending_exam_results_v1:" + user.uid;
     let pending = [];
@@ -1301,26 +1303,37 @@ async function syncPendingExamResults(user) {
 
     if (!Array.isArray(pending) || !pending.length) return;
 
-    const remaining = [];
-    for (const item of pending) {
-        if (!item || item.uid !== user.uid || !item.sessionId || !item.result) continue;
-        try {
-            await setDoc(doc(db, "users", user.uid, "results", item.sessionId), {
-                ...item.result,
-                date: serverTimestamp()
-            }, { merge: true });
+    pendingExamSyncInProgress = true;
+    try {
+        const remaining = [];
+        for (const item of pending) {
+            // Keep malformed or mismatched entries for recovery instead of
+            // silently deleting a student's locally saved exam result.
+            if (!item || item.uid !== user.uid || !item.sessionId || !item.result) {
+                remaining.push(item);
+                continue;
+            }
 
-            await setDoc(doc(db, "users", user.uid, "examHistory", item.sessionId), {
-                ...item.result,
-                completedAt: serverTimestamp()
-            }, { merge: true });
-        } catch (error) {
-            console.warn("Could not sync a pending exam result yet:", error);
-            remaining.push(item);
+            try {
+                await setDoc(doc(db, "users", user.uid, "results", item.sessionId), {
+                    ...item.result,
+                    date: serverTimestamp()
+                }, { merge: true });
+
+                await setDoc(doc(db, "users", user.uid, "examHistory", item.sessionId), {
+                    ...item.result,
+                    completedAt: serverTimestamp()
+                }, { merge: true });
+            } catch (error) {
+                console.warn("Could not sync a pending exam result yet:", error);
+                remaining.push(item);
+            }
         }
-    }
 
-    localStorage.setItem(queueKey, JSON.stringify(remaining));
+        localStorage.setItem(queueKey, JSON.stringify(remaining));
+    } finally {
+        pendingExamSyncInProgress = false;
+    }
 }
 
 onAuthStateChanged(auth, user => {
