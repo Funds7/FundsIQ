@@ -1,4 +1,4 @@
-const CACHE_NAME = "fundsiq-staging-offline-v2";
+const CACHE_NAME = "fundsiq-staging-offline-v3";
 
 // Essential FundsIQ application files
 const APP_FILES = [
@@ -9,6 +9,8 @@ const APP_FILES = [
   "./login.html",
   "./login.js",
   "./login.css",
+  "./signup.html",
+  "./manifest.json",
 
   // Dashboard
   "./dashboard.html",
@@ -25,6 +27,7 @@ const APP_FILES = [
 
   // Marketer area
   "./marketer.html",
+  "./marketer.css",
   "./marketer.js",
   "./marketer-dashboard.html",
   "./marketer-dashboard.js",
@@ -39,6 +42,8 @@ const APP_FILES = [
   // Styles
   "./style.css",
   "./more.css",
+  "./more.html",
+  "./more.js",
   "./components.css",
 
   // Leaderboard
@@ -84,7 +89,10 @@ const APP_FILES = [
   // Results
   "./result.html",
   "./result.js",
-  "./result.css"
+  "./result.css",
+
+  // App icon used by installed PWA
+  "./icons/icon-512.png"
 ];
 
 
