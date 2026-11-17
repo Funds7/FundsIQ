@@ -94,7 +94,7 @@ const MINIMUM_WITHDRAWAL_NAIRA =
 
 const FRONTEND_URL =
   process.env.FRONTEND_URL ||
-  "https://funds7.github.io/FundsIQ/";
+  "https://funds7.github.io/FundsIQ-preview/";
 
 const API_BASE_URL =
   process.env.API_BASE_URL ||
