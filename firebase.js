@@ -25,19 +25,17 @@ import {
 
 const firebaseConfig = {
 
-    apiKey: "AIzaSyCDdEVyEk_99psr5D5fFhsipQ0SjsgUov4",
+    apiKey: "AIzaSyDaURbisisWcSvL9pLeOeNCw43i8chm1Ds",
 
-    authDomain: "fundsiq.firebaseapp.com",
+    authDomain: "fundsiq-staging.firebaseapp.com",
 
-    projectId: "fundsiq",
+    projectId: "fundsiq-staging",
 
-    storageBucket: "fundsiq.firebasestorage.app",
+    storageBucket: "fundsiq-staging.firebasestorage.app",
 
-    messagingSenderId: "778280805278",
+    messagingSenderId: "937858572135",
 
-    appId: "1:778280805278:web:7ab7dd6ce68370e33aac8f",
-
-    measurementId: "G-9QMVJX15TQ"
+    appId: "1:937858572135:web:d8ad2b1487752c5344d9c2"
 
 };
 
