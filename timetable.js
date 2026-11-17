@@ -177,7 +177,7 @@ async function saveClassSession(data) {
     if (index >= 0) list[index] = {...list[index], ...record}; else list.push({...record, createdAt: new Date().toISOString()});
     saveLocalTimetable();
     if (auth.currentUser) {
-        try { await setDoc(doc(db, 'users/' + auth.currentUser.uid + '/timetable', id), record); }
+        try { await setDoc(doc(db, 'users/' + auth.currentUser.uid + '/timetable', id), record, { merge: true }); }
         catch (error) {
             const key = 'fundsiq_timetable_queue:' + auth.currentUser.uid;
             const queue = JSON.parse(localStorage.getItem(key) || '[]'); queue.push({action:'set', id, data:record}); localStorage.setItem(key, JSON.stringify(queue));
@@ -214,7 +214,7 @@ async function syncPendingTimetableChanges() {
     for (const op of pending) {
         try {
             const ref = doc(db, 'users/' + user.uid + '/timetable', op.id);
-            if (op.action === 'delete') await deleteDoc(ref); else await setDoc(ref, op.data);
+            if (op.action === 'delete') await deleteDoc(ref); else await setDoc(ref, op.data, { merge: true });
         } catch (error) { failed.push(op); }
     }
     localStorage.setItem(key, JSON.stringify(failed));
