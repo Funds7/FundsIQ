@@ -57,6 +57,8 @@ window.premiumUnlock = premiumUnlock;
 const FREE_USER_LIMIT = 10;
 let currentField = "totalScore";
 let latestLeaderboard = null;
+let leaderboardRequestId = 0;
+let leaderboardLoadTimer = null;
 
 
 // ========================================
@@ -64,6 +66,7 @@ let latestLeaderboard = null;
 // ========================================
 
 async function loadLeaderboard() {
+    const requestId = ++leaderboardRequestId;
     const list = document.getElementById("leaderboard-list");
     if (list) {
         list.innerHTML = '<div class="leader-empty">Loading leaderboard...</div>';
@@ -88,6 +91,7 @@ async function loadLeaderboard() {
         );
 
         const data = await response.json();
+        if (requestId !== leaderboardRequestId) return;
         if (!response.ok || data.success !== true) {
             throw new Error(data.msg || "Unable to load leaderboard.");
         }
@@ -97,6 +101,7 @@ async function loadLeaderboard() {
         showLeaderboard(data.rankings || [], data.premium === true);
         showPersonalRank(data.personalRank, data.premium === true);
     } catch (error) {
+        if (requestId !== leaderboardRequestId) return;
         console.error("Leaderboard error:", error);
         if (list) {
             list.innerHTML = `
@@ -290,7 +295,12 @@ window.loadCourseLeaderboard = function(course, button) {
     }
 
     currentField = course === "overall" ? "totalScore" : course + "Score";
-    loadLeaderboard();
+
+    // Ignore an older response immediately and combine rapid taps into
+    // one request so slow mobile connections do not queue stale results.
+    leaderboardRequestId++;
+    clearTimeout(leaderboardLoadTimer);
+    leaderboardLoadTimer = setTimeout(loadLeaderboard, 120);
 };
 
 
