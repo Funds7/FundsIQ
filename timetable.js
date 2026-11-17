@@ -45,19 +45,11 @@ const State = {
 // =========================================================================
 // 3. OFFICIAL DELSU LECTURE & EXAM DATABASES (FAST OFFLINE PRE-LOAD)
 // =========================================================================
-State.lectureTimetable = [
-    { id: "l1", courseCode: "GST 101", courseTitle: "Use of English & Library", lecturer: "Dr. Mrs. Ogisi", venue: "Convocation Hall", day: "Monday", startTime: "09:00", endTime: "11:00", description: "Use of Library module emphasis" },
-    { id: "l2", courseCode: "GST 102", courseTitle: "Philosophy & Human Existence", lecturer: "Prof. Edevbie", venue: "CLH 1", day: "Tuesday", startTime: "10:00", endTime: "12:00", description: "Ancient Greek Philosophy overview" },
-    { id: "l3", courseCode: "GST 103", courseTitle: "DELSU Culture & Ethics", lecturer: "Dr. Akpotor", venue: "Lecture Theatre 3", day: "Wednesday", startTime: "08:00", endTime: "10:00", description: "Ethical frameworks in DELSU environment" },
-    { id: "l4", courseCode: "GST 111", courseTitle: "Nigerian Peoples, Culture & Entrepreneurial Skills", lecturer: "Dr. Ogho", venue: "CLH 2", day: "Thursday", startTime: "12:00", endTime: "14:00", description: "Cultural diversity and enterprise" },
-    { id: "l5", courseCode: "GST 112", courseTitle: "History & Philosophy of Science and Technology", lecturer: "Prof. Enue", venue: "Science Lecture Theatre", day: "Friday", startTime: "14:00", endTime: "16:00", description: "Technological transformations through time" }
-];
+// No official lecture timetable is preloaded. Students create their own schedule.
+State.lectureTimetable = [];
 
-State.examTimetable = [
-    { id: "e1", courseCode: "GST 101", courseTitle: "Use of English & Library", date: "2026-08-10", startTime: "08:30", endTime: "10:30", venue: "DELSU CBT Center, Site 3", duration: "120 mins" },
-    { id: "e2", courseCode: "GST 102", courseTitle: "Philosophy & Human Existence", date: "2026-08-12", startTime: "11:00", endTime: "13:00", venue: "DELSU CBT Center, Site 3", duration: "120 mins" },
-    { id: "e3", courseCode: "GST 103", courseTitle: "DELSU Culture & Ethics", date: "2026-08-14", startTime: "13:30", endTime: "15:30", venue: "DELSU CBT Center, Site 3", duration: "120 mins" }
-];
+// No exam dates are preloaded. Students manage their own exam schedule.
+State.examTimetable = [];
 
 // =========================================================================
 // 4. UX ALERTS (TOAST NOTIFIER ENGINE)
@@ -118,8 +110,11 @@ function subscribeToFirestoreTimetable(user) {
             });
         });
 
-        // Store into runtime state
-        State.classes = localItems;
+        // Keep each timetable category separate; legacy records remain Personal.
+        State.classes = localItems.filter(item => !item.type || item.type === 'personal');
+        State.lectureTimetable = localItems.filter(item => item.type === 'lecture');
+        State.examTimetable = localItems.filter(item => item.type === 'exam');
+        saveLocalTimetable();
         toggleSkeleton(false);
         renderSchedule();
         evaluateSmartSchedule();
@@ -136,67 +131,79 @@ function subscribeToFirestoreTimetable(user) {
 }
 
 // Fallback logic for sandbox/offline deployments
-function loadOfflineMockData() {
-    const key = "offline_timetable_mock";
-    let data = localStorage.getItem(key);
+function loadOfflineMockData() { loadLocalTimetable(); renderSchedule(); evaluateSmartSchedule(); }
 
-    if (data) {
-        State.classes = JSON.parse(data);
-    } else {
-        State.classes = [
-            { id: "m1", courseCode: "GST 103", courseTitle: "DELSU Culture & Ethics", lecturer: "Dr. Akpotor", venue: "CLH 1", day: "Monday", startTime: "08:30", endTime: "10:30", description: "Pre-reading Chapter 1 is required.", attended: false, notes: "", checklist: [] }
-        ];
-        localStorage.setItem(key, JSON.stringify(State.classes));
-    }
-    renderSchedule();
-    evaluateSmartSchedule();
+function getListForTab(type = State.activeTab) {
+    if (type === 'lecture') return State.lectureTimetable;
+    if (type === 'exam') return State.examTimetable;
+    return State.classes;
+}
+
+function saveLocalTimetable() {
+    localStorage.setItem('fundsiq_timetable_v2:' + (State.user?.uid || 'guest'), JSON.stringify({personal: State.classes, lecture: State.lectureTimetable, exam: State.examTimetable}));
+}
+
+function loadLocalTimetable() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('fundsiq_timetable_v2:' + (State.user?.uid || 'guest')) || '{}');
+        State.classes = saved.personal || []; State.lectureTimetable = saved.lecture || []; State.examTimetable = saved.exam || [];
+        if (!State.user && !State.classes.length) {
+            const old = JSON.parse(localStorage.getItem('offline_timetable_mock') || '[]');
+            State.classes = old.filter(item => item && item.id !== 'm1'); saveLocalTimetable();
+        }
+    } catch (error) { console.warn('Local timetable could not be loaded', error); }
 }
 
 async function saveClassSession(data) {
+    const list = getListForTab();
+    const id = State.selectedEditId || (crypto.randomUUID ? crypto.randomUUID() : 'fiq_' + Date.now());
+    const record = {...data, type: State.activeTab, id, updatedAt: new Date().toISOString()};
+    const index = list.findIndex(item => item.id === id);
+    if (index >= 0) list[index] = {...list[index], ...record}; else list.push({...record, createdAt: new Date().toISOString()});
+    saveLocalTimetable();
     if (auth.currentUser) {
-        const path = `users/${auth.currentUser.uid}/timetable`;
-        if (State.selectedEditId) {
-            const docRef = doc(db, path, State.selectedEditId);
-            await updateDoc(docRef, data);
-            showToast("Class session updated successfully.");
-        } else {
-            await addDoc(collection(db, path), {
-                ...data,
-                createdAt: new Date().toISOString()
-            });
-            showToast("Class session created successfully.");
+        try { await setDoc(doc(db, 'users/' + auth.currentUser.uid + '/timetable', id), record, { merge: true }); }
+        catch (error) {
+            const key = 'fundsiq_timetable_queue:' + auth.currentUser.uid;
+            const queue = JSON.parse(localStorage.getItem(key) || '[]'); queue.push({action:'set', id, data:record}); localStorage.setItem(key, JSON.stringify(queue));
+            showToast('Saved on this device. Cloud sync is pending.', 'error');
         }
-    } else {
-        // Local fallback writes
-        const key = "offline_timetable_mock";
-        if (State.selectedEditId) {
-            State.classes = State.classes.map(c => c.id === State.selectedEditId ? { ...c, ...data } : c);
-            showToast("Updated offline mock session.");
-        } else {
-            const newObj = { id: "m_" + Date.now(), ...data, createdAt: new Date().toISOString() };
-            State.classes.push(newObj);
-            showToast("Saved offline mock session.");
-        }
-        localStorage.setItem(key, JSON.stringify(State.classes));
-        renderSchedule();
-        evaluateSmartSchedule();
-    }
+    } else showToast(index >= 0 ? 'Schedule updated on this device.' : 'Schedule saved on this device.');
+    State.selectedEditId = null; renderSchedule(); evaluateSmartSchedule();
 }
 
 async function deleteClassSession(id) {
+    const list = [...State.classes, ...State.lectureTimetable, ...State.examTimetable];
+    const item = list.find(entry => entry.id === id);
+    const target = item ? getListForTab(item.type || 'personal') : getListForTab();
+    const index = target.findIndex(entry => entry.id === id); if (index >= 0) target.splice(index, 1);
+    saveLocalTimetable();
     if (auth.currentUser) {
-        const path = `users/${auth.currentUser.uid}/timetable`;
-        const docRef = doc(db, path, id);
-        await deleteDoc(docRef);
-        showToast("Class session deleted permanently.");
-    } else {
-        const key = "offline_timetable_mock";
-        State.classes = State.classes.filter(c => c.id !== id);
-        localStorage.setItem(key, JSON.stringify(State.classes));
-        showToast("Mock session deleted.");
-        renderSchedule();
-        evaluateSmartSchedule();
+        try { await deleteDoc(doc(db, 'users/' + auth.currentUser.uid + '/timetable', id)); }
+        catch (error) {
+            const key = 'fundsiq_timetable_queue:' + auth.currentUser.uid;
+            const queue = JSON.parse(localStorage.getItem(key) || '[]'); queue.push({action:'delete', id}); localStorage.setItem(key, JSON.stringify(queue));
+            showToast('Deleted here. Cloud deletion is pending.', 'error');
+        }
     }
+    State.selectedDeleteId = null; renderSchedule(); evaluateSmartSchedule();
+}
+
+function loadOfflineMockData() { loadLocalTimetable(); renderSchedule(); evaluateSmartSchedule(); }
+async function syncPendingTimetableChanges() {
+    const user = auth.currentUser;
+    if (!user || !navigator.onLine) return;
+    const key = 'fundsiq_timetable_queue:' + user.uid;
+    const pending = JSON.parse(localStorage.getItem(key) || '[]');
+    const failed = [];
+    for (const op of pending) {
+        try {
+            const ref = doc(db, 'users/' + user.uid + '/timetable', op.id);
+            if (op.action === 'delete') await deleteDoc(ref); else await setDoc(ref, op.data, { merge: true });
+        } catch (error) { failed.push(op); }
+    }
+    localStorage.setItem(key, JSON.stringify(failed));
+    if (pending.length && !failed.length) showToast('Offline timetable changes synced.');
 }
 
 // =========================================================================
@@ -317,21 +324,11 @@ function createClassCard(item) {
             </div>
             ${item.description ? `<p class="class-desc">${item.description}</p>` : ""}
             <div class="card-actions-row">
-                ${State.activeTab === 'personal' ? `
-                    <button class="mini-pill-btn ${isAttended ? 'attended-pill' : ''}" onclick="window.triggerProductivity('${item.id}')">
-                        ${isAttended ? '✓ Attended' : '📝 Notes & Tasks'}
-                    </button>
-                    <div class="edit-actions">
-                        <button class="icon-action-btn" onclick="window.editClassModal('${item.id}')" title="Edit Class">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                        </button>
-                        <button class="icon-action-btn delete-icon" onclick="window.triggerDeleteModal('${item.id}')" title="Delete Class">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 3 21 3 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
-                    </div>
-                ` : `
-                    <span class="mini-pill-btn" onclick="alert('Join Study Group for ${item.courseCode}!')">👥 Study Group</span>
-                `}
+                ${State.activeTab === 'personal' ? `<button class="mini-pill-btn ${isAttended ? 'attended-pill' : ''}" onclick="window.triggerProductivity('${item.id}')">${isAttended ? '✓ Attended' : '📝 Notes & Tasks'}</button>` : ''}
+                ${State.activeTab !== 'exam' ? `<div class="edit-actions">
+                    <button class="icon-action-btn" onclick="window.editClassModal('${item.id}')" title="Edit Schedule">✎</button>
+                    <button class="icon-action-btn delete-icon" onclick="window.triggerDeleteModal('${item.id}')" title="Delete Schedule">×</button>
+                </div>` : ''}
             </div>
         </div>
     `;
@@ -363,7 +360,7 @@ function renderExamTimeline(container, dataset) {
                     <div class="meta-item" style="grid-column: span 2;"><span class="meta-label">Venue:</span> ${exam.venue}</div>
                 </div>
                 <div class="card-actions-row">
-                    <button class="mini-pill-btn" style="border-color: var(--danger); color: var(--danger); background: none;" onclick="alert('Revision scope configured. Keep studying!')">🎯 Revision Scope</button>
+                    <div class="edit-actions"><button class="icon-action-btn" onclick="window.editClassModal('${exam.id}')" title="Edit Exam">✎</button><button class="icon-action-btn delete-icon" onclick="window.triggerDeleteModal('${exam.id}')" title="Delete Exam">×</button></div>
                 </div>
             </div>
         `;
@@ -642,20 +639,24 @@ function updateDashboardMetrics(total, today) {
 // Global modal triggers
 window.editClassModal = function(id) {
     const modal = document.getElementById("class-modal");
-    const item = State.classes.find(c => c.id === id);
+    const item = [...State.classes, ...State.lectureTimetable, ...State.examTimetable].find(c => c.id === id);
     if (!modal || !item) return;
 
     State.selectedEditId = id;
-    document.getElementById("modal-title").textContent = "Modify Class Session";
+    document.getElementById("modal-title").textContent = item.type === "exam" ? "Edit Exam" : item.type === "lecture" ? "Edit Lecture" : "Modify Class Session";
     document.getElementById("form-edit-id").value = id;
     document.getElementById("form-course-code").value = item.courseCode;
     document.getElementById("form-course-title").value = item.courseTitle;
     document.getElementById("form-lecturer").value = item.lecturer;
     document.getElementById("form-venue").value = item.venue;
-    document.getElementById("form-day").value = item.day;
+    document.getElementById("form-day").value = item.day || "Monday";
+    const dateField = document.getElementById("form-exam-date");
+    if (dateField) dateField.value = item.date || "";
     document.getElementById("form-start-time").value = item.startTime;
     document.getElementById("form-end-time").value = item.endTime;
     document.getElementById("form-description").value = item.description || "";
+    document.getElementById("form-day-group").style.display = item.type === "exam" ? "none" : "";
+    document.getElementById("form-exam-date-group").style.display = item.type === "exam" ? "" : "none";
 
     modal.classList.add("active");
 };
@@ -697,6 +698,10 @@ document.addEventListener("DOMContentLoaded", () => {
             tabButtons.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             State.activeTab = btn.getAttribute("data-tab");
+            const examMode = State.activeTab === 'exam';
+            document.getElementById('form-day-group').style.display = examMode ? 'none' : '';
+            document.getElementById('form-exam-date-group').style.display = examMode ? '' : 'none';
+            document.getElementById('filter-day').disabled = examMode;
             
             // Adjust search query and render state
             renderSchedule();
@@ -741,7 +746,10 @@ document.addEventListener("DOMContentLoaded", () => {
             State.selectedEditId = null;
             document.getElementById("class-form").reset();
             document.getElementById("form-edit-id").value = "";
-            document.getElementById("modal-title").textContent = "Schedule New Class";
+            const examMode = State.activeTab === "exam";
+            document.getElementById("modal-title").textContent = examMode ? "Add Exam" : State.activeTab === "lecture" ? "Add Lecture" : "Schedule New Class";
+            document.getElementById("form-day-group").style.display = examMode ? "none" : "";
+            document.getElementById("form-exam-date-group").style.display = examMode ? "" : "none";
             classModal.classList.add("active");
         });
     }
@@ -766,13 +774,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 courseTitle: document.getElementById("form-course-title").value.trim(),
                 lecturer: document.getElementById("form-lecturer").value.trim(),
                 venue: document.getElementById("form-venue").value.trim(),
-                day: document.getElementById("form-day").value,
+                type: State.activeTab,
+                day: State.activeTab === "exam" ? "" : document.getElementById("form-day").value,
+                date: State.activeTab === "exam" ? document.getElementById("form-exam-date").value : "",
+                duration: State.activeTab === "exam" ? document.getElementById("form-duration").value.trim() : "",
                 startTime: document.getElementById("form-start-time").value,
                 endTime: document.getElementById("form-end-time").value,
                 description: document.getElementById("form-description").value.trim()
             };
 
             try {
+                if (State.activeTab === "exam" && !data.date) { showToast("Please choose the exam date.", "error"); return; }
                 await saveClassSession(data);
                 classModal.classList.remove("active");
             } catch (err) {
@@ -894,6 +906,8 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    window.addEventListener("online", syncPendingTimetableChanges);
+    if (navigator.onLine) syncPendingTimetableChanges();
     // Start background clock processes
     startClockTicks();
 });

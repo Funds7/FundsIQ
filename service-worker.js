@@ -1,4 +1,4 @@
-const CACHE_NAME = "fundsiq-offline-v7";
+const CACHE_NAME = "fundsiq-offline-v9";
 
 // Essential FundsIQ application files
 const APP_FILES = [
@@ -59,7 +59,12 @@ const APP_FILES = [
   // Results
   "./result.html",
   "./result.js",
-  "./result.css"
+  "./result.css",
+
+  // Timetable (including local-first schedule management)
+  "./timetable.html",
+  "./timetable.js",
+  "./timetable.css"
 ];
 
 
