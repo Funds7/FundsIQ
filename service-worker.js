@@ -1,4 +1,4 @@
-const CACHE_NAME = "fundsiq-offline-v14";
+const CACHE_NAME = "fundsiq-offline-v15";
 
 const APP_FILES = [
 
