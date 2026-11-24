@@ -204,6 +204,29 @@ async function restoreActiveExam() {
 }
 
 window.addEventListener("pagehide", saveActiveExam);
+
+window.addEventListener("pageshow", event => {
+    if (!event.persisted) return;
+
+    const key = activeExamKey();
+    if (key) localStorage.removeItem(key);
+
+    clearInterval(timerInterval);
+    timerInterval = null;
+    questions = [];
+    currentQuestion = 0;
+    answers = [];
+    review = [];
+    timeLeft = 0;
+    examStartTime = 0;
+    isSubmitting = false;
+
+    const examScreen = document.getElementById("exam-screen");
+    const setupScreen = document.getElementById("setup-screen");
+    if (examScreen) examScreen.style.display = "none";
+    if (setupScreen) setupScreen.style.display = "block";
+});
+
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") saveActiveExam();
 });
