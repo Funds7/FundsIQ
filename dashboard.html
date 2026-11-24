@@ -291,43 +291,42 @@
     .quick-menu-head { display:flex; align-items:center; justify-content:space-between; gap:12px
       <!-- Quick navigation drawer: app tools and public information -->
       <div class="quick-menu-backdrop" id="quick-menu-backdrop" aria-hidden="true"></div>
-      <aside class="quick-menu" id="quick-menu" aria-label="FundsIQ quick navigation" aria-hidden="true">
+      <aside class="quick-menu" id="quick-menu" aria-label="FundsIQ account and support menu" aria-hidden="true">
         <div class="quick-menu-head">
           <div class="quick-menu-brand">FundsI<span>Q</span></div>
           <button class="quick-menu-close" id="quick-menu-close" type="button" aria-label="Close menu">×</button>
         </div>
-        <p class="quick-menu-intro">Quick access to your study tools, learning resources and help pages.</p>
+        <p class="quick-menu-intro">Account, rewards and help — everything beyond your daily study tools.</p>
 
-        <section class="quick-menu-group" aria-label="Your account">
-          <h3>Your account</h3>
-          <a href="dashboard.html"><span>⌂</span>Dashboard home</a>
-          <a href="profile.html"><span>👤</span>My profile</a>
-          <a href="more.html"><span>•••</span>More features</a>
+        <section class="quick-menu-group" aria-label="Account">
+          <h3>Account</h3>
+          <a href="profile.html"><span>👤</span>My Profile</a>
+          <a href="more.html"><span>⚙️</span>Account &amp; App Features</a>
+          <a href="more.html"><span>⭐</span>Premium Membership</a>
+          <a href="more.html"><span>🪙</span>Coins &amp; Rewards</a>
         </section>
 
-        <section class="quick-menu-group" aria-label="Academic tools">
-          <h3>Academic tools</h3>
-          <a href="courses.html"><span>📚</span>GST courses</a>
-          <a href="exam.html"><span>✍️</span>CBT practice</a>
-          <a href="cgpa.html"><span>🧮</span>GPA &amp; CGPA calculator</a>
-          <a href="timetable.html"><span>📅</span>Class timetable</a>
-          <a href="performance.html"><span>📈</span>My performance</a>
-          <a href="leaderboard.html"><span>🏆</span>Leaderboard</a>
+        <section class="quick-menu-group" aria-label="Community">
+          <h3>Community</h3>
+          <a href="more.html"><span>🤝</span>Refer &amp; Earn</a>
+          <a href="marketer.html"><span>📢</span>Affiliate Programme</a>
+          <a href="marketer-dashboard.html"><span>📈</span>Marketer Dashboard</a>
         </section>
 
-        <section class="quick-menu-group" aria-label="Free learning resources">
-          <h3>Free learning resources</h3>
-          <a href="study-guides.html"><span>📖</span>Free GST study guides</a>
-          <a href="public-learning.html"><span>🗂️</span>GST chapters &amp; notes</a>
-          <a href="public-practice.html"><span>📝</span>Free CBT practice</a>
+        <section class="quick-menu-group" aria-label="Support">
+          <h3>Support</h3>
+          <a href="contact.html"><span>✉️</span>Contact Support</a>
         </section>
 
-        <section class="quick-menu-group" aria-label="Help and policies">
-          <h3>Help &amp; policies</h3>
-          <a href="contact.html"><span>✉️</span>Contact FundsIQ</a>
-          <a href="privacy.html"><span>🔒</span>Privacy policy</a>
-          <a href="terms.html"><span>📄</span>Terms of service</a>
+        <section class="quick-menu-group" aria-label="Policies">
+          <h3>Policies</h3>
+          <a href="privacy.html"><span>🔒</span>Privacy Policy</a>
+          <a href="terms.html"><span>📄</span>Terms of Service</a>
         </section>
+
+        <button class="quick-menu-logout" id="quick-menu-logout" type="button">
+          <span>↪</span> Log Out
+        </button>
       </aside>
 ; margin-bottom:8px; }
     .quick-menu-brand { font-size:1.35rem; font-weight:800; }
@@ -340,6 +339,15 @@
     .quick-menu a:hover { background:rgba(139,92,246,.15); }
     .quick-menu a span { width:25px; text-align:center; font-size:1.05rem; }
     body.menu-open { overflow:hidden; }
+
+    .quick-menu-logout {
+      width:100%; display:flex; align-items:center; gap:12px;
+      margin-top:26px; padding:13px 12px; border:1px solid rgba(248,113,113,.25);
+      border-radius:11px; background:rgba(239,68,68,.09); color:#fecaca;
+      font:inherit; font-size:.92rem; text-align:left; cursor:pointer;
+    }
+    .quick-menu-logout span { width:25px; text-align:center; font-size:1.1rem; }
+    .quick-menu-logout:hover { background:rgba(239,68,68,.16); }
 </style>
 
 </head>
@@ -889,12 +897,15 @@
               </line>
 
       
-  <script>
+  <script type="module">
+    import { auth } from "./firebase.js";
+    import { signOut } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
     (() => {
       const button = document.querySelector(".nav-icon-btn");
       const drawer = document.getElementById("quick-menu");
       const backdrop = document.getElementById("quick-menu-backdrop");
       const closeButton = document.getElementById("quick-menu-close");
+      const logoutButton = document.getElementById("quick-menu-logout");
       if (!button || !drawer || !backdrop || !closeButton) return;
 
       const openMenu = () => {
@@ -922,6 +933,23 @@
       button.addEventListener("click", openMenu);
       closeButton.addEventListener("click", closeMenu);
       backdrop.addEventListener("click", closeMenu);
+      if (logoutButton) {
+        logoutButton.addEventListener("click", async () => {
+          const confirmed = window.confirm("Log out of your FundsIQ account?");
+          if (!confirmed) return;
+          logoutButton.disabled = true;
+          logoutButton.textContent = "Logging out...";
+          try {
+            await signOut(auth);
+            window.location.replace("login.html");
+          } catch (error) {
+            console.error("FundsIQ logout failed:", error);
+            window.alert("We couldn't log you out. Please try again.");
+            logoutButton.disabled = false;
+            logoutButton.innerHTML = "<span>↪</span> Log Out";
+          }
+        });
+      }
       document.addEventListener("keydown", event => {
         if (event.key === "Escape" && drawer.classList.contains("open")) closeMenu();
       });
