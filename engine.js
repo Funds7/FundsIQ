@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
 import {
     doc,
@@ -88,6 +89,147 @@ let examStartTime = 0;
 let selectedCourse = "";
 let selectedQuestionsCount = 50;
 let selectedMode = "Exam";
+
+// ==========================================
+// EXAM REFRESH RECOVERY
+// ==========================================
+
+const ACTIVE_EXAM_PREFIX = "fundsiq_active_exam_v1:";
+
+function activeExamKey() {
+    const uid = auth.currentUser?.uid;
+    return uid ? ACTIVE_EXAM_PREFIX + uid : null;
+}
+
+function saveActiveExam() {
+    const key = activeExamKey();
+    if (!key || !questions.length || isSubmitting) return;
+
+    try {
+        localStorage.setItem(key, JSON.stringify({
+            version: 1,
+            uid: auth.currentUser.uid,
+            course: selectedCourse,
+            mode: selectedMode,
+            questions,
+            currentQuestion,
+            answers,
+            review,
+            timeLeft,
+            savedAt: Date.now(),
+            examStartTime
+        }));
+    } catch (error) {
+        console.warn("Could not save exam progress locally:", error);
+    }
+}
+
+async function restoreActiveExam() {
+    const key = activeExamKey();
+    if (!key || !auth.currentUser) return;
+
+    let saved;
+    try {
+        saved = JSON.parse(localStorage.getItem(key) || "null");
+    } catch (error) {
+        localStorage.removeItem(key);
+        return;
+    }
+
+    if (!saved || saved.version !== 1 ||
+        saved.uid !== auth.currentUser.uid ||
+        !Array.isArray(saved.questions) || !saved.questions.length) return;
+
+    const navigationEntry = performance.getEntriesByType?.("navigation")?.[0];
+    const isPageRefresh = navigationEntry
+        ? navigationEntry.type === "reload"
+        : performance.navigation?.type === 1;
+
+    if (!isPageRefresh) {
+        localStorage.removeItem(key);
+        return;
+    }
+
+    const confirmed = await showConfirmModal({
+        type: "info",
+        title: "Resume Your Previous Exam?",
+        message: "We found an unfinished exam saved on this device.",
+        details: "Your previous answers and question order will be restored.",
+        confirmText: "Resume Exam",
+        cancelText: "Start Fresh"
+    });
+
+    if (confirmed !== true) {
+        localStorage.removeItem(key);
+        return;
+    }
+
+    questions = saved.questions;
+    selectedCourse = saved.course;
+    selectedMode = saved.mode === "Quiz" ? "Quiz" : "Exam";
+    currentQuestion = Math.min(
+        Math.max(0, Number(saved.currentQuestion) || 0),
+        questions.length - 1
+    );
+    answers = Array.isArray(saved.answers) ? saved.answers : [];
+    review = Array.isArray(saved.review) ? saved.review : [];
+    timeLeft = Math.max(0, Number(saved.timeLeft) || 0);
+    examStartTime = Number(saved.examStartTime) || Date.now();
+
+    if (selectedMode === "Exam") {
+        const elapsed = Math.max(
+            0,
+            Math.floor((Date.now() - Number(saved.savedAt || Date.now())) / 1000)
+        );
+        timeLeft = Math.max(0, timeLeft - elapsed);
+    }
+
+    const setupScreen = document.getElementById("setup-screen");
+    const examScreen = document.getElementById("exam-screen");
+    if (setupScreen) setupScreen.style.display = "none";
+    if (examScreen) examScreen.style.display = "block";
+
+    const modeEl = document.getElementById("mode");
+    if (modeEl) modeEl.innerText = selectedMode + " Mode";
+
+    loadQuestion();
+
+    if (selectedMode === "Exam") {
+        if (timeLeft <= 0) finishExam(true);
+        else startTimer();
+    } else {
+        const timerEl = document.getElementById("timer");
+        if (timerEl) timerEl.innerText = "♾️ Unlimited";
+    }
+}
+
+window.addEventListener("pagehide", saveActiveExam);
+
+window.addEventListener("pageshow", event => {
+    if (!event.persisted) return;
+
+    const key = activeExamKey();
+    if (key) localStorage.removeItem(key);
+
+    clearInterval(timerInterval);
+    timerInterval = null;
+    questions = [];
+    currentQuestion = 0;
+    answers = [];
+    review = [];
+    timeLeft = 0;
+    examStartTime = 0;
+    isSubmitting = false;
+
+    const examScreen = document.getElementById("exam-screen");
+    const setupScreen = document.getElementById("setup-screen");
+    if (examScreen) examScreen.style.display = "none";
+    if (setupScreen) setupScreen.style.display = "block";
+});
+
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveActiveExam();
+});
 
 // ==========================================
 // COURSE RESOLUTION
@@ -228,6 +370,15 @@ function initPage() {
     if (examScreen) examScreen.style.display = "none";
 
     if (setupScreen) setupScreen.style.display = "block";
+
+    // Restore only after Firebase has restored the signed-in account.
+    onAuthStateChanged(auth, user => {
+        if (user) {
+            restoreActiveExam().catch(error =>
+                console.warn("Exam recovery failed:", error)
+            );
+        }
+    });
 }
 
 // DOM READY
@@ -594,6 +745,7 @@ function loadQuestion() {
     createPalette();
 
     updateNextButton();
+    saveActiveExam();
 }
 
 // ==========================================
@@ -778,6 +930,7 @@ function startTimer() {
         timeLeft--;
 
         updateTimerDisplay();
+        if (timeLeft % 5 === 0) saveActiveExam();
 
     }, 1000);
 }
@@ -837,6 +990,9 @@ async function finishExam(autoSubmit = false) {
     }
 
     isSubmitting = true;
+
+    const activeKey = activeExamKey();
+    if (activeKey) localStorage.removeItem(activeKey);
 
     clearInterval(timerInterval);
 
