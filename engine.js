@@ -991,6 +991,9 @@ async function finishExam(autoSubmit = false) {
 
     isSubmitting = true;
 
+    const activeKey = activeExamKey();
+    if (activeKey) localStorage.removeItem(activeKey);
+
     clearInterval(timerInterval);
 
     const submitBtn =
