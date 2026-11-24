@@ -303,6 +303,40 @@
     .quick-menu-logout span { width:25px; text-align:center; font-size:1.1rem; }
     .quick-menu-logout:hover { background:rgba(239,68,68,.16); }
     body.menu-open { overflow:hidden; }
+
+    /* CUSTOM FUNDSIQ LOGOUT DIALOG */
+    .logout-modal-backdrop {
+      position:fixed; inset:0; z-index:11000; display:grid; place-items:center;
+      padding:22px; background:rgba(2,6,23,.76); backdrop-filter:blur(7px);
+      opacity:0; visibility:hidden; transition:opacity .2s ease,visibility .2s ease;
+    }
+    .logout-modal-backdrop.show { opacity:1; visibility:visible; }
+    .logout-modal {
+      width:min(390px,100%); padding:26px 22px 20px; border-radius:22px;
+      background:linear-gradient(160deg,#1d2b49,#111c32 72%);
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:0 24px 70px rgba(0,0,0,.5); color:#f8fafc;
+      transform:translateY(12px) scale(.98); transition:transform .2s ease;
+    }
+    .logout-modal-backdrop.show .logout-modal { transform:translateY(0) scale(1); }
+    .logout-modal-icon {
+      width:58px;height:58px;display:grid;place-items:center;margin:0 auto 16px;
+      border-radius:18px;background:rgba(248,113,113,.13);color:#fca5a5;font-size:27px;
+      border:1px solid rgba(248,113,113,.2);
+    }
+    .logout-modal h2 { margin:0 0 9px;text-align:center;font-size:1.22rem; }
+    .logout-modal p { margin:0 auto 22px;max-width:290px;text-align:center;color:#b9c5d8;font-size:.9rem;line-height:1.55; }
+    .logout-modal-actions { display:grid;grid-template-columns:1fr 1fr;gap:10px; }
+    .logout-modal-actions button {
+      min-height:46px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;
+    }
+    .logout-cancel { border:1px solid rgba(255,255,255,.13);background:#293852;color:#e5edf9; }
+    .logout-confirm { border:0;background:linear-gradient(135deg,#ef4444,#dc2626);color:white; }
+    .logout-modal-actions button:disabled { opacity:.65;cursor:wait; }
+    .logout-error { display:none;margin:14px 0 0!important;color:#fca5a5!important;font-size:.8rem!important; }
+    .logout-error.show { display:block; }
+    .logout-modal button:focus-visible { outline:3px solid #c4b5fd;outline-offset:3px; }
+
 </style>
 
 </head>
@@ -400,6 +434,19 @@
         </section>
         <button class="quick-menu-logout" id="quick-menu-logout" type="button"><span>↪</span> Log Out</button>
       </aside>
+
+      <div class="logout-modal-backdrop" id="logout-modal-backdrop" aria-hidden="true">
+        <section class="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title" aria-describedby="logout-modal-description">
+          <div class="logout-modal-icon" aria-hidden="true">↪</div>
+          <h2 id="logout-modal-title">Log out of FundsIQ?</h2>
+          <p id="logout-modal-description">You’ll need to sign in again to access your account. Are you sure you want to continue?</p>
+          <div class="logout-modal-actions">
+            <button class="logout-cancel" id="logout-cancel" type="button">Stay logged in</button>
+            <button class="logout-confirm" id="logout-confirm" type="button">Yes, log out</button>
+          </div>
+          <p class="logout-error" id="logout-error" role="alert">We couldn’t log you out. Please try again.</p>
+        </section>
+      </div>
 
       <!-- ===========================
       PROFILE SECTION
@@ -1155,6 +1202,10 @@
     const backdrop = document.getElementById("quick-menu-backdrop");
     const closeButton = document.getElementById("quick-menu-close");
     const logoutButton = document.getElementById("quick-menu-logout");
+    const logoutBackdrop = document.getElementById("logout-modal-backdrop");
+    const logoutCancel = document.getElementById("logout-cancel");
+    const logoutConfirm = document.getElementById("logout-confirm");
+    const logoutError = document.getElementById("logout-error");
 
     if (button && drawer && backdrop && closeButton) {
       const openMenu = () => {
@@ -1185,25 +1236,51 @@
       closeButton.addEventListener("click", closeMenu);
       backdrop.addEventListener("click", closeMenu);
 
-      if (logoutButton) {
-        logoutButton.addEventListener("click", async () => {
-          if (!window.confirm("Log out of your FundsIQ account?")) return;
-          logoutButton.disabled = true;
-          logoutButton.textContent = "Logging out...";
+      const closeLogoutDialog = () => {
+        logoutBackdrop.classList.remove("show");
+        logoutBackdrop.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("menu-open");
+        logoutButton.focus();
+      };
+
+      if (logoutButton && logoutBackdrop && logoutCancel && logoutConfirm) {
+        logoutButton.addEventListener("click", () => {
+          closeMenu();
+          logoutBackdrop.classList.add("show");
+          logoutBackdrop.setAttribute("aria-hidden", "false");
+          document.body.classList.add("menu-open");
+          logoutError.classList.remove("show");
+          logoutConfirm.disabled = false;
+          logoutConfirm.textContent = "Yes, log out";
+          logoutCancel.focus();
+        });
+
+        logoutCancel.addEventListener("click", closeLogoutDialog);
+        logoutBackdrop.addEventListener("click", event => {
+          if (event.target === logoutBackdrop && !logoutConfirm.disabled) closeLogoutDialog();
+        });
+
+        logoutConfirm.addEventListener("click", async () => {
+          logoutConfirm.disabled = true;
+          logoutCancel.disabled = true;
+          logoutConfirm.textContent = "Logging out...";
+          logoutError.classList.remove("show");
           try {
             await signOut(auth);
             window.location.replace("login.html");
           } catch (error) {
             console.error("FundsIQ logout failed:", error);
-            window.alert("We couldn't log you out. Please try again.");
-            logoutButton.disabled = false;
-            logoutButton.innerHTML = "<span>↪</span> Log Out";
+            logoutError.classList.add("show");
+            logoutConfirm.disabled = false;
+            logoutCancel.disabled = false;
+            logoutConfirm.textContent = "Try again";
           }
         });
       }
 
       document.addEventListener("keydown", event => {
-        if (event.key === "Escape" && drawer.classList.contains("open")) closeMenu();
+        if (event.key === "Escape" && logoutBackdrop.classList.contains("show") && !logoutConfirm.disabled) closeLogoutDialog();
+        else if (event.key === "Escape" && drawer.classList.contains("open")) closeMenu();
       });
     }
   </script>
