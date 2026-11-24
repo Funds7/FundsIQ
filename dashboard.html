@@ -261,7 +261,87 @@
         right: 8px;
       }
     }
-  </style>
+  
+    /* DASHBOARD QUICK MENU */
+    .nav-icon-btn {
+      width: 42px; height: 42px; flex: 0 0 42px;
+      display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px; background: rgba(255,255,255,.05);
+      color: #f8fafc; font-size: 21px; cursor: pointer;
+    }
+    .nav-icon-btn:focus-visible,.quick-menu a:focus-visible,.quick-menu-close:focus-visible {
+      outline: 3px solid #a78bfa; outline-offset: 3px;
+    }
+    .quick-menu-backdrop {
+      position: fixed; inset: 0; z-index: 10000;
+      background: rgba(2,6,23,.68); opacity: 0; visibility: hidden;
+      transition: opacity .2s ease, visibility .2s ease;
+    }
+    .quick-menu-backdrop.open { opacity: 1; visibility: visible; }
+    .quick-menu {
+      position: fixed; inset: 0 auto 0 0; z-index: 10001;
+      width: min(340px, 88vw); overflow-y: auto;
+      padding: 22px 18px 34px;
+      background: #111c32; border-right: 1px solid rgba(255,255,255,.10);
+      box-shadow: 18px 0 45px rgba(0,0,0,.35);
+      transform: translateX(-105%); transition: transform .22s ease;
+    }
+    .quick-menu.open { transform: translateX(0); }
+    .quick-menu-head { display:flex; align-items:center; justify-content:space-between; gap:12px
+      <!-- Quick navigation drawer: app tools and public information -->
+      <div class="quick-menu-backdrop" id="quick-menu-backdrop" aria-hidden="true"></div>
+      <aside class="quick-menu" id="quick-menu" aria-label="FundsIQ quick navigation" aria-hidden="true">
+        <div class="quick-menu-head">
+          <div class="quick-menu-brand">FundsI<span>Q</span></div>
+          <button class="quick-menu-close" id="quick-menu-close" type="button" aria-label="Close menu">×</button>
+        </div>
+        <p class="quick-menu-intro">Quick access to your study tools, learning resources and help pages.</p>
+
+        <section class="quick-menu-group" aria-label="Your account">
+          <h3>Your account</h3>
+          <a href="dashboard.html"><span>⌂</span>Dashboard home</a>
+          <a href="profile.html"><span>👤</span>My profile</a>
+          <a href="more.html"><span>•••</span>More features</a>
+        </section>
+
+        <section class="quick-menu-group" aria-label="Academic tools">
+          <h3>Academic tools</h3>
+          <a href="courses.html"><span>📚</span>GST courses</a>
+          <a href="exam.html"><span>✍️</span>CBT practice</a>
+          <a href="cgpa.html"><span>🧮</span>GPA &amp; CGPA calculator</a>
+          <a href="timetable.html"><span>📅</span>Class timetable</a>
+          <a href="performance.html"><span>📈</span>My performance</a>
+          <a href="leaderboard.html"><span>🏆</span>Leaderboard</a>
+        </section>
+
+        <section class="quick-menu-group" aria-label="Free learning resources">
+          <h3>Free learning resources</h3>
+          <a href="study-guides.html"><span>📖</span>Free GST study guides</a>
+          <a href="public-learning.html"><span>🗂️</span>GST chapters &amp; notes</a>
+          <a href="public-practice.html"><span>📝</span>Free CBT practice</a>
+        </section>
+
+        <section class="quick-menu-group" aria-label="Help and policies">
+          <h3>Help &amp; policies</h3>
+          <a href="contact.html"><span>✉️</span>Contact FundsIQ</a>
+          <a href="privacy.html"><span>🔒</span>Privacy policy</a>
+          <a href="terms.html"><span>📄</span>Terms of service</a>
+          <a href="corrections.html"><span>✓</span>Corrections policy</a>
+        </section>
+      </aside>
+; margin-bottom:8px; }
+    .quick-menu-brand { font-size:1.35rem; font-weight:800; }
+    .quick-menu-brand span { color:#a78bfa; }
+    .quick-menu-close { border:0; border-radius:10px; padding:7px 11px; background:#26344d; color:#fff; font-size:22px; cursor:pointer; }
+    .quick-menu-intro { color:#aebbd0; font-size:.82rem; margin-bottom:22px; }
+    .quick-menu-group { margin:18px 0; }
+    .quick-menu-group h3 { color:#a78bfa; font-size:.72rem; letter-spacing:.09em; text-transform:uppercase; margin:0 0 8px 8px; }
+    .quick-menu a { display:flex; align-items:center; gap:12px; padding:12px 10px; margin:3px 0; border-radius:11px; color:#e5edf9; font-size:.92rem; }
+    .quick-menu a:hover { background:rgba(139,92,246,.15); }
+    .quick-menu a span { width:25px; text-align:center; font-size:1.05rem; }
+    body.menu-open { overflow:hidden; }
+</style>
 
 </head>
 
@@ -809,7 +889,46 @@
                 y2="6">
               </line>
 
-              <line
+      
+  <script>
+    (() => {
+      const button = document.querySelector(".nav-icon-btn");
+      const drawer = document.getElementById("quick-menu");
+      const backdrop = document.getElementById("quick-menu-backdrop");
+      const closeButton = document.getElementById("quick-menu-close");
+      if (!button || !drawer || !backdrop || !closeButton) return;
+
+      const openMenu = () => {
+        drawer.classList.add("open");
+        backdrop.classList.add("open");
+        document.body.classList.add("menu-open");
+        drawer.setAttribute("aria-hidden", "false");
+        backdrop.setAttribute("aria-hidden", "false");
+        button.setAttribute("aria-expanded", "true");
+        closeButton.focus();
+      };
+      const closeMenu = () => {
+        drawer.classList.remove("open");
+        backdrop.classList.remove("open");
+        document.body.classList.remove("menu-open");
+        drawer.setAttribute("aria-hidden", "true");
+        backdrop.setAttribute("aria-hidden", "true");
+        button.setAttribute("aria-expanded", "false");
+        button.focus();
+      };
+      button.type = "button";
+      button.setAttribute("aria-label", "Open navigation menu");
+      button.setAttribute("aria-controls", "quick-menu");
+      button.setAttribute("aria-expanded", "false");
+      button.addEventListener("click", openMenu);
+      closeButton.addEventListener("click", closeMenu);
+      backdrop.addEventListener("click", closeMenu);
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && drawer.classList.contains("open")) closeMenu();
+      });
+    })();
+  </script>
+        <line
                 x1="3"
                 y1="10"
                 x2="21"
