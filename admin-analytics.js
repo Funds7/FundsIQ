@@ -169,6 +169,20 @@ async function loadAnalytics() {
     document.getElementById("cbtNote").textContent = data.cbt.note;
     document.getElementById("activityNote").textContent = data.activity.note;
 
+    document.getElementById("active24h").textContent = data.activity.active24h ?? 0;
+    document.getElementById("active7d").textContent = data.activity.active7d ?? 0;
+    document.getElementById("active30d").textContent = data.activity.active30d ?? 0;
+
+    const marketerOverview = data.marketers || {};
+    document.getElementById("totalMarketers").textContent = marketerOverview.total ?? 0;
+    document.getElementById("activeMarketers").textContent = marketerOverview.active ?? 0;
+    document.getElementById("marketerSales").textContent = marketerOverview.premiumSales ?? 0;
+    document.getElementById("marketerCommission").textContent = money(marketerOverview.commissionEarned ?? 0);
+    const top = marketerOverview.topPerformer;
+    document.getElementById("topMarketer").textContent = top
+      ? "Top performer: " + top.name + " · " + top.registrations + " registrations · " + top.premiumSales + " Premium sales"
+      : "Top performer: No referrals recorded yet.";
+
     renderBars(data.registrations.byDay || []);
     renderReferrals(data.referrals || {});
     renderMarketers(data.marketers || {});
