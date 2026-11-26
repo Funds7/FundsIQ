@@ -454,6 +454,9 @@ app.post(
   async (req, res) => {
     try {
       const uid = req.firebaseUser.uid;
+      if (ADMIN_EMAILS.includes(String(req.firebaseUser.email || "").toLowerCase())) {
+        return res.json({ status: true, recorded: false });
+      }
       const nowMs = Date.now();
       const lastWrite = activityHeartbeatCache.get(uid) || 0;
 
