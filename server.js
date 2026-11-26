@@ -442,6 +442,47 @@ app.post(
 
 
 // ======================================================
+// USER ACTIVITY HEARTBEAT
+// ======================================================
+
+// Limit each account to one Firestore activity write every five minutes.
+const activityHeartbeatCache = new Map();
+
+app.post(
+  "/api/activity/heartbeat",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const uid = req.firebaseUser.uid;
+      const nowMs = Date.now();
+      const lastWrite = activityHeartbeatCache.get(uid) || 0;
+
+      if (nowMs - lastWrite < 5 * 60 * 1000) {
+        return res.json({ status: true, recorded: false });
+      }
+
+      const userRef = db.collection("users").doc(uid);
+      const userSnap = await userRef.get();
+
+      if (!userSnap.exists) {
+        return res.status(404).json({ msg: "User account not found." });
+      }
+
+      await userRef.set({
+        lastActiveAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      activityHeartbeatCache.set(uid, nowMs);
+      return res.json({ status: true, recorded: true });
+    } catch (error) {
+      console.error("Activity heartbeat error:", error);
+      return res.status(500).json({ msg: "Unable to record activity." });
+    }
+  }
+);
+
+
+// ======================================================
 // PRIVATE ADMIN ANALYTICS
 // ======================================================
 
@@ -499,6 +540,23 @@ app.get(
       const registeredThisMonth = usersList.filter(user => {
         const date = asDate(user.createdAt);
         return date && date >= startOfMonth;
+      }).length;
+
+      // Activity tracking begins when the heartbeat endpoint is deployed.
+      const activeSince24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const activeSince7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const activeSince30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const activeUsers24h = usersList.filter(user => {
+        const date = asDate(user.lastActiveAt);
+        return date && date >= activeSince24h;
+      }).length;
+      const activeUsers7d = usersList.filter(user => {
+        const date = asDate(user.lastActiveAt);
+        return date && date >= activeSince7d;
+      }).length;
+      const activeUsers30d = usersList.filter(user => {
+        const date = asDate(user.lastActiveAt);
+        return date && date >= activeSince30d;
       }).length;
 
       const referralOwners = new Map();
@@ -565,6 +623,21 @@ app.get(
         b.premiumSales - a.premiumSales ||
         b.totalReferrals - a.totalReferrals
       );
+
+      const marketerOverview = {
+        total: marketerStats.length,
+        active: marketerStats.filter(item => item.totalReferrals > 0).length,
+        totalReferrals: marketerStats.reduce((sum, item) => sum + item.totalReferrals, 0),
+        premiumSales: marketerStats.reduce((sum, item) => sum + item.premiumSales, 0),
+        commissionEarned: marketerStats.reduce((sum, item) => sum + item.commissionEarned, 0),
+        topPerformer: marketerStats.length && (marketerStats[0].totalReferrals > 0 || marketerStats[0].premiumSales > 0)
+          ? {
+              name: marketerStats[0].name,
+              registrations: marketerStats[0].totalReferrals,
+              premiumSales: marketerStats[0].premiumSales
+            }
+          : null
+      };
 
       const successfulPurchases = commissions.filter(item =>
         item.transactionReference && item.currency === "NGN"
@@ -640,10 +713,7 @@ app.get(
         },
         referrals: referralBreakdown,
         marketers: {
-          total: marketerStats.length,
-          totalReferrals: marketerStats.reduce((sum, item) => sum + item.totalReferrals, 0),
-          premiumSales: marketerStats.reduce((sum, item) => sum + item.premiumSales, 0),
-          commissionEarned: marketerStats.reduce((sum, item) => sum + item.commissionEarned, 0),
+          ...marketerOverview,
           list: marketerStats
         },
         cbt: {
@@ -655,8 +725,11 @@ app.get(
           note: "CBT figures reflect completedTests values currently stored on user profiles."
         },
         activity: {
-          available: false,
-          note: "Daily and returning-user activity is not currently tracked by the app."
+          available: true,
+          active24h: activeUsers24h,
+          active7d: activeUsers7d,
+          active30d: activeUsers30d,
+          note: "Active users are signed-in accounts recorded using FundsIQ since activity tracking launched."
         }
       });
     } catch (error) {
