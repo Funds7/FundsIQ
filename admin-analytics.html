@@ -59,6 +59,9 @@
         <article class="card"><div class="label">Unique Premium purchasers</div><div class="value" id="purchasers">—</div><div class="hint">Customers with recorded successful purchases</div></article>
         <article class="card"><div class="label">Premium purchases</div><div class="value" id="purchaseCount">—</div><div class="hint">Recorded successful transactions</div></article>
         <article class="card"><div class="label">Recorded Premium revenue</div><div class="value" id="revenue">—</div><div class="hint">Based on verified Premium transactions</div></article>
+        <article class="card"><div class="label">Active users · 24 hours</div><div class="value" id="active24h">—</div><div class="hint">Signed-in users seen in the last 24 hours</div></article>
+        <article class="card"><div class="label">Active users · 7 days</div><div class="value" id="active7d">—</div><div class="hint">Unique users seen in the last 7 days</div></article>
+        <article class="card"><div class="label">Active users · 30 days</div><div class="value" id="active30d">—</div><div class="hint">Unique users seen in the last 30 days</div></article>
       </div>
 
       <div class="two">
@@ -72,6 +75,17 @@
           <p class="muted">Referral attribution is based on the referral code saved on each user's account.</p>
         </section>
       </div>
+
+      <section class="panel" style="margin-top:14px">
+        <h2>Marketer overview</h2>
+        <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin:0">
+          <div><div class="label">Total marketers</div><div class="value" id="totalMarketers">—</div></div>
+          <div><div class="label">Marketers with referrals</div><div class="value" id="activeMarketers">—</div></div>
+          <div><div class="label">Marketer Premium sales</div><div class="value" id="marketerSales">—</div></div>
+          <div><div class="label">Commissions earned</div><div class="value" id="marketerCommission">—</div></div>
+        </div>
+        <p class="muted" id="topMarketer" style="margin:12px 0 0">Top performer: —</p>
+      </section>
 
       <section class="panel" style="margin-top:14px">
         <h2>Marketer performance</h2>
@@ -95,8 +109,8 @@
         </section>
         <section class="panel">
           <h2>Engagement tracking</h2>
-          <div class="value" style="font-size:1.1rem">Not available yet</div>
-          <p class="muted" id="activityNote">Daily active users, returning users and last-active dates are not currently recorded by the app. We should add this tracking before reporting those numbers.</p>
+          <div class="value" style="font-size:1.1rem">Activity tracking is live</div>
+          <p class="muted" id="activityNote">Active-user counts begin from the date this tracking update is deployed. Older activity cannot be reconstructed.</p>
         </section>
       </div>
 
