@@ -9,7 +9,8 @@ import {
 
 import {
     initializeAuth,
-    browserLocalPersistence
+    browserLocalPersistence,
+    onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
 
@@ -57,6 +58,41 @@ export const auth = initializeAuth(app, {
 
     persistence: browserLocalPersistence
 
+});
+
+// ==========================================
+// AUTHENTICATED ACTIVITY TRACKING
+// ==========================================
+
+// One heartbeat per signed-in session, then every five minutes while active.
+let activityTimer = null;
+
+onAuthStateChanged(auth, (user) => {
+    if (activityTimer) {
+        clearInterval(activityTimer);
+        activityTimer = null;
+    }
+
+    if (!user) return;
+
+    const recordActivity = async () => {
+        if (document.visibilityState !== "visible") return;
+
+        try {
+            const token = await user.getIdToken();
+            await fetch("https://fundsiq-api.onrender.com/api/activity/heartbeat", {
+                method: "POST",
+                headers: { Authorization: "Bearer " + token }
+            });
+        } catch (error) {
+            console.warn("FundsIQ activity tracking unavailable:", error);
+        }
+    };
+
+    recordActivity();
+    activityTimer = setInterval(recordActivity, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", recordActivity);
+    window.addEventListener("focus", recordActivity);
 });
 
 
