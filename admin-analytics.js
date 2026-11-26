@@ -85,6 +85,38 @@ function renderReferrals(data) {
   });
 }
 
+function renderMarketers(data) {
+  const body = document.getElementById("marketerRows");
+  body.replaceChildren();
+  const items = data.list || [];
+  if (!items.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 6;
+    cell.textContent = "No marketer accounts found yet.";
+    row.appendChild(cell);
+    body.appendChild(row);
+    return;
+  }
+  items.forEach(item => {
+    const row = document.createElement("tr");
+    const values = [
+      item.name + (item.email ? " · " + item.email : ""),
+      item.referralCode || "—",
+      item.totalReferrals || 0,
+      item.premiumSales || 0,
+      (item.conversionRate || 0) + "%",
+      money(item.commissionEarned || 0)
+    ];
+    values.forEach(value => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.appendChild(cell);
+    });
+    body.appendChild(row);
+  });
+}
+
 function renderPurchases(items) {
   const body = document.getElementById("purchaseRows");
   body.replaceChildren();
@@ -139,6 +171,7 @@ async function loadAnalytics() {
 
     renderBars(data.registrations.byDay || []);
     renderReferrals(data.referrals || {});
+    renderMarketers(data.marketers || {});
     renderPurchases(data.premium.recentPurchases || []);
 
     document.getElementById("updatedAt").textContent =
