@@ -123,6 +123,25 @@ function loadUser() {
 
         const uid = user.uid;
 
+        // Record authenticated app activity for the admin engagement dashboard.
+        const recordActivity = async () => {
+            if (document.visibilityState !== "visible") return;
+            try {
+                const token = await user.getIdToken();
+                await fetch("https://fundsiq-api.onrender.com/api/activity/heartbeat", {
+                    method: "POST",
+                    headers: { Authorization: "Bearer " + token }
+                });
+            } catch (error) {
+                console.warn("FundsIQ activity tracking unavailable:", error);
+            }
+        };
+
+        recordActivity();
+        setInterval(recordActivity, 5 * 60 * 1000);
+        document.addEventListener("visibilitychange", recordActivity);
+        window.addEventListener("focus", recordActivity);
+
         // Load locally saved profile immediately
 
         try {
