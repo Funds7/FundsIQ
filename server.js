@@ -532,6 +532,40 @@ app.get(
         }
       });
 
+      const marketerProfiles = usersList.filter(user => user.isMarketer === true || user.role === "marketer");
+      const marketerStats = marketerProfiles.map(marketer => {
+        const code = String(marketer.referralCode || "").toUpperCase();
+        const referredUsers = code
+          ? usersList.filter(user => String(user.referredBy || "").toUpperCase() === code)
+          : [];
+        const marketerPurchases = commissions.filter(item =>
+          item.marketerUid === marketer.uid &&
+          item.transactionReference &&
+          item.currency === "NGN"
+        );
+        const commissionEarned = marketerPurchases.reduce(
+          (sum, item) => sum + Number(item.commissionAmount || 0),
+          0
+        );
+        const premiumCustomers = new Set(marketerPurchases.map(item => item.customerUid).filter(Boolean));
+        return {
+          name: marketer.name || "FundsIQ marketer",
+          email: marketer.email || "",
+          referralCode: marketer.referralCode || "",
+          totalReferrals: referredUsers.length,
+          premiumSales: marketerPurchases.length,
+          uniquePremiumCustomers: premiumCustomers.size,
+          conversionRate: referredUsers.length
+            ? Math.round((premiumCustomers.size / referredUsers.length) * 1000) / 10
+            : 0,
+          commissionEarned,
+          status: marketer.isMarketer === true ? "Active" : "Inactive"
+        };
+      }).sort((a, b) =>
+        b.premiumSales - a.premiumSales ||
+        b.totalReferrals - a.totalReferrals
+      );
+
       const successfulPurchases = commissions.filter(item =>
         item.transactionReference && item.currency === "NGN"
       );
@@ -605,6 +639,13 @@ app.get(
           recentPurchases
         },
         referrals: referralBreakdown,
+        marketers: {
+          total: marketerStats.length,
+          totalReferrals: marketerStats.reduce((sum, item) => sum + item.totalReferrals, 0),
+          premiumSales: marketerStats.reduce((sum, item) => sum + item.premiumSales, 0),
+          commissionEarned: marketerStats.reduce((sum, item) => sum + item.commissionEarned, 0),
+          list: marketerStats
+        },
         cbt: {
           participantsTracked: cbtParticipantsTracked,
           attemptsTracked: usersList.reduce(
