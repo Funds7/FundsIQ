@@ -452,10 +452,7 @@ app.get(
     try {
       const adminEmail = String(req.firebaseUser.email || "").toLowerCase();
 
-      if (
-        req.firebaseUser.email_verified !== true ||
-        !ADMIN_EMAILS.includes(adminEmail)
-      ) {
+      if (!ADMIN_EMAILS.includes(adminEmail)) {
         return res.status(403).json({
           msg: "You are not authorized to access FundsIQ admin analytics."
         });
