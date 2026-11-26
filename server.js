@@ -92,6 +92,11 @@ const MARKETER_COMMISSION_NAIRA =
 const MINIMUM_WITHDRAWAL_NAIRA =
   2000;
 
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map(email => email.trim().toLowerCase())
+  .filter(Boolean);
+
 const FRONTEND_URL =
   "https://funds7.github.io/FundsIQ/";
 
@@ -432,6 +437,196 @@ app.post(
 
     }
 
+  }
+);
+
+
+// ======================================================
+// PRIVATE ADMIN ANALYTICS
+// ======================================================
+
+app.get(
+  "/api/admin/analytics",
+  verifyFirebaseToken,
+  async (req, res) => {
+    try {
+      const adminEmail = String(req.firebaseUser.email || "").toLowerCase();
+
+      if (
+        req.firebaseUser.email_verified !== true ||
+        !ADMIN_EMAILS.includes(adminEmail)
+      ) {
+        return res.status(403).json({
+          msg: "You are not authorized to access FundsIQ admin analytics."
+        });
+      }
+
+      const [usersSnapshot, commissionsSnapshot] = await Promise.all([
+        db.collection("users").get(),
+        db.collection("premiumCommissions").get()
+      ]);
+
+      const usersList = usersSnapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      }));
+
+      const commissions = commissionsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfWeek = new Date(startOfToday);
+      startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const asDate = value => {
+        if (!value) return null;
+        if (typeof value.toDate === "function") return value.toDate();
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      };
+
+      const registeredToday = usersList.filter(user => {
+        const date = asDate(user.createdAt);
+        return date && date >= startOfToday;
+      }).length;
+
+      const registeredThisWeek = usersList.filter(user => {
+        const date = asDate(user.createdAt);
+        return date && date >= startOfWeek;
+      }).length;
+
+      const registeredThisMonth = usersList.filter(user => {
+        const date = asDate(user.createdAt);
+        return date && date >= startOfMonth;
+      }).length;
+
+      const referralOwners = new Map();
+      usersList.forEach(user => {
+        if (user.referralCode) {
+          referralOwners.set(String(user.referralCode).toUpperCase(), user);
+        }
+      });
+
+      const referralBreakdown = {
+        organic: 0,
+        personalReferrals: 0,
+        marketerReferrals: 0,
+        otherReferred: 0
+      };
+
+      usersList.forEach(user => {
+        const code = String(user.referredBy || "").toUpperCase();
+        if (!code) {
+          referralBreakdown.organic++;
+          return;
+        }
+
+        const owner = referralOwners.get(code);
+        if (owner && (owner.isMarketer === true || owner.role === "marketer")) {
+          referralBreakdown.marketerReferrals++;
+        } else if (owner) {
+          referralBreakdown.personalReferrals++;
+        } else {
+          referralBreakdown.otherReferred++;
+        }
+      });
+
+      const successfulPurchases = commissions.filter(item =>
+        item.transactionReference && item.currency === "NGN"
+      );
+
+      const purchaserUids = new Set(
+        successfulPurchases.map(item => item.customerUid).filter(Boolean)
+      );
+
+      const premiumActiveUsers = usersList.filter(user => user.premium === true);
+      const revenueNaira = successfulPurchases.reduce(
+        (total, item) => total + Number(item.premiumAmount || 0),
+        0
+      );
+
+      const recentPurchases = successfulPurchases
+        .sort((a, b) => {
+          const aDate = asDate(a.createdAt);
+          const bDate = asDate(b.createdAt);
+          return (bDate ? bDate.getTime() : 0) - (aDate ? aDate.getTime() : 0);
+        })
+        .slice(0, 25)
+        .map(item => {
+          const customer = usersList.find(user => user.uid === item.customerUid);
+          const date = asDate(item.createdAt);
+          return {
+            customerName: customer ? (customer.name || "FundsIQ user") : "FundsIQ user",
+            customerEmail: customer ? (customer.email || "") : "",
+            amount: Number(item.premiumAmount || 0),
+            currency: item.currency || "NGN",
+            reference: item.transactionReference || item.id,
+            date: date ? date.toISOString() : null,
+            referralCode: item.referralCode || null,
+            marketerUid: item.marketerUid || null
+          };
+        });
+
+      const registrationsByDay = [];
+      for (let offset = 29; offset >= 0; offset--) {
+        const day = new Date(startOfToday);
+        day.setDate(day.getDate() - offset);
+        const nextDay = new Date(day);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const count = usersList.filter(user => {
+          const date = asDate(user.createdAt);
+          return date && date >= day && date < nextDay;
+        }).length;
+        registrationsByDay.push({
+          date: day.toISOString().slice(0, 10),
+          registrations: count
+        });
+      }
+
+      const cbtParticipantsTracked = usersList.filter(
+        user => Number(user.completedTests || 0) > 0
+      ).length;
+
+      return res.json({
+        generatedAt: now.toISOString(),
+        registrations: {
+          total: usersList.length,
+          today: registeredToday,
+          thisWeek: registeredThisWeek,
+          thisMonth: registeredThisMonth,
+          byDay: registrationsByDay
+        },
+        premium: {
+          activeAccounts: premiumActiveUsers.length,
+          uniquePurchasersRecorded: purchaserUids.size,
+          successfulPurchasesRecorded: successfulPurchases.length,
+          revenueNaira,
+          recentPurchases
+        },
+        referrals: referralBreakdown,
+        cbt: {
+          participantsTracked: cbtParticipantsTracked,
+          attemptsTracked: usersList.reduce(
+            (total, user) => total + Number(user.completedTests || 0),
+            0
+          ),
+          note: "CBT figures reflect completedTests values currently stored on user profiles."
+        },
+        activity: {
+          available: false,
+          note: "Daily and returning-user activity is not currently tracked by the app."
+        }
+      });
+    } catch (error) {
+      console.error("Admin analytics error:", error);
+      return res.status(500).json({
+        msg: "Unable to load admin analytics."
+      });
+    }
   }
 );
 
