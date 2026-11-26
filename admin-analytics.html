@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>FundsIQ Admin Analytics</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#0b1220;color:#e5edf9;font-family:Arial,sans-serif;padding:20px}
+    .wrap{max-width:1100px;margin:auto}
+    header{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:24px}
+    .brand{font-size:1.5rem;font-weight:800}.brand span{color:#a78bfa}
+    .sub{color:#94a3b8;font-size:.85rem;margin-top:5px}
+    button{border:0;border-radius:10px;padding:11px 15px;background:#6d4aff;color:#fff;font-weight:700;cursor:pointer}
+    button.secondary{background:#24334c}
+    .status{padding:14px;border-radius:12px;background:#17243a;color:#cbd5e1;margin:14px 0}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:16px 0}
+    .card,.panel{background:#142037;border:1px solid #263650;border-radius:16px;padding:18px}
+    .label{font-size:.78rem;color:#9aabc4;margin-bottom:9px}
+    .value{font-size:1.8rem;font-weight:800;overflow-wrap:anywhere}
+    .hint{font-size:.72rem;color:#8fa2bf;margin-top:8px;line-height:1.4}
+    h2{font-size:1.05rem;margin:0 0 14px}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .bar-row{display:grid;grid-template-columns:125px 1fr 34px;align-items:center;gap:8px;margin:12px 0;font-size:.8rem}
+    .track{height:9px;background:#263650;border-radius:20px;overflow:hidden}
+    .bar{height:100%;background:linear-gradient(90deg,#7c5cff,#22c5a6);border-radius:20px}
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:620px;font-size:.8rem}
+    th,td{text-align:left;padding:12px 10px;border-bottom:1px solid #293952;white-space:nowrap}
+    th{color:#9aabc4;font-weight:600}
+    .muted{color:#91a2bc;font-size:.8rem;line-height:1.5}
+    .hidden{display:none!important}
+    @media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.two{grid-template-columns:1fr}}
+    @media(max-width:480px){body{padding:13px}.value{font-size:1.5rem}.card,.panel{padding:14px}header{align-items:flex-start}.bar-row{grid-template-columns:105px 1fr 28px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div>
+        <div class="brand">FundsI<span>Q</span> Admin</div>
+        <div class="sub">Private business analytics</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="secondary" id="refreshBtn" type="button">Refresh</button>
+        <button class="secondary" id="logoutBtn" type="button">Log out</button>
+      </div>
+    </header>
+
+    <div id="status" class="status">Checking administrator access…</div>
+    <section id="dashboard" class="hidden">
+      <div class="grid">
+        <article class="card"><div class="label">Total registered users</div><div class="value" id="totalUsers">—</div><div class="hint">All FundsIQ accounts</div></article>
+        <article class="card"><div class="label">New today</div><div class="value" id="todayUsers">—</div><div class="hint">Registrations today</div></article>
+        <article class="card"><div class="label">New this week</div><div class="value" id="weekUsers">—</div><div class="hint">Monday to today</div></article>
+        <article class="card"><div class="label">New this month</div><div class="value" id="monthUsers">—</div><div class="hint">Current calendar month</div></article>
+        <article class="card"><div class="label">Active Premium accounts</div><div class="value" id="activePremium">—</div><div class="hint">Users currently marked Premium</div></article>
+        <article class="card"><div class="label">Unique Premium purchasers</div><div class="value" id="purchasers">—</div><div class="hint">Customers with recorded successful purchases</div></article>
+        <article class="card"><div class="label">Premium purchases</div><div class="value" id="purchaseCount">—</div><div class="hint">Recorded successful transactions</div></article>
+        <article class="card"><div class="label">Recorded Premium revenue</div><div class="value" id="revenue">—</div><div class="hint">Based on verified Premium transactions</div></article>
+      </div>
+
+      <div class="two">
+        <section class="panel">
+          <h2>Registrations — last 30 days</h2>
+          <div id="registrationChart"></div>
+        </section>
+        <section class="panel">
+          <h2>Referral sources</h2>
+          <div id="referralStats"></div>
+          <p class="muted">Referral attribution is based on the referral code saved on each user's account.</p>
+        </section>
+      </div>
+
+      <div class="two" style="margin-top:14px">
+        <section class="panel">
+          <h2>CBT usage (currently stored)</h2>
+          <div class="grid" style="grid-template-columns:1fr 1fr;margin:0">
+            <div><div class="label">Participants tracked</div><div class="value" id="cbtUsers">—</div></div>
+            <div><div class="label">Attempts tracked</div><div class="value" id="cbtAttempts">—</div></div>
+          </div>
+          <p class="muted" id="cbtNote"></p>
+        </section>
+        <section class="panel">
+          <h2>Engagement tracking</h2>
+          <div class="value" style="font-size:1.1rem">Not available yet</div>
+          <p class="muted" id="activityNote">Daily active users, returning users and last-active dates are not currently recorded by the app. We should add this tracking before reporting those numbers.</p>
+        </section>
+      </div>
+
+      <section class="panel" style="margin-top:14px">
+        <h2>Recent Premium purchases</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Customer</th><th>Amount</th><th>Date</th><th>Payment reference</th><th>Referral code</th></tr></thead>
+            <tbody id="purchaseRows"><tr><td colspan="5">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+      <p class="muted" id="updatedAt" style="margin:14px 2px"></p>
+    </section>
+  </main>
+  <script type="module" src="admin-analytics.js"></script>
+</body>
+</html>
