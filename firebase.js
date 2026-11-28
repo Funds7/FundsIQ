@@ -75,6 +75,16 @@ onAuthStateChanged(auth, (user) => {
 
     if (!user) return;
 
+    // A sessionStorage ID distinguishes separate visits while remaining stable
+    // for this browser tab. Older visits cannot be reconstructed retroactively.
+    let sessionId = sessionStorage.getItem("fundsiq_visit_session");
+    if (!sessionId) {
+        sessionId = (crypto.randomUUID ? crypto.randomUUID() : (
+            Date.now().toString(16) + "-" + Math.random().toString(16).slice(2) + "-" + Math.random().toString(16).slice(2)
+        ));
+        sessionStorage.setItem("fundsiq_visit_session", sessionId);
+    }
+
     const recordActivity = async () => {
         if (document.visibilityState !== "visible") return;
 
@@ -82,7 +92,11 @@ onAuthStateChanged(auth, (user) => {
             const token = await user.getIdToken();
             await fetch("https://fundsiq-api.onrender.com/api/activity/heartbeat", {
                 method: "POST",
-                headers: { Authorization: "Bearer " + token }
+                headers: {
+                    Authorization: "Bearer " + token,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ sessionId })
             });
         } catch (error) {
             console.warn("FundsIQ activity tracking unavailable:", error);
