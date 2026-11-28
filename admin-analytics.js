@@ -172,6 +172,36 @@ async function loadAnalytics() {
     document.getElementById("active24h").textContent = data.activity.active24h ?? 0;
     document.getElementById("active7d").textContent = data.activity.active7d ?? 0;
     document.getElementById("active30d").textContent = data.activity.active30d ?? 0;
+    document.getElementById("returningUsersCount").textContent = data.activity.returningUsersCount ?? 0;
+    document.getElementById("newTrackedUsers").textContent = data.activity.newTrackedUsers ?? 0;
+    document.getElementById("totalTrackedVisits").textContent = data.activity.totalTrackedVisits ?? 0;
+    document.getElementById("returningUsersNote").textContent = data.activity.note || "";
+    const returningBody = document.getElementById("returningUserRows");
+    returningBody.replaceChildren();
+    const returningUsers = data.activity.returningUsers || [];
+    if (!returningUsers.length) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 4;
+      cell.textContent = "No returning users recorded yet. The list will populate as users come back.";
+      row.appendChild(cell);
+      returningBody.appendChild(row);
+    } else {
+      returningUsers.forEach(item => {
+        const row = document.createElement("tr");
+        [
+          item.name + (item.email ? " · " + item.email : ""),
+          item.visits,
+          dateText(item.firstVisit),
+          dateText(item.lastVisit)
+        ].forEach(value => {
+          const cell = document.createElement("td");
+          cell.textContent = value;
+          row.appendChild(cell);
+        });
+        returningBody.appendChild(row);
+      });
+    }
 
     const marketerOverview = data.marketers || {};
     document.getElementById("totalMarketers").textContent = marketerOverview.total ?? 0;
