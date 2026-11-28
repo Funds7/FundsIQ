@@ -457,26 +457,47 @@ app.post(
       if (ADMIN_EMAILS.includes(String(req.firebaseUser.email || "").toLowerCase())) {
         return res.json({ status: true, recorded: false });
       }
-      const nowMs = Date.now();
-      const lastWrite = activityHeartbeatCache.get(uid) || 0;
 
-      if (nowMs - lastWrite < 5 * 60 * 1000) {
-        return res.json({ status: true, recorded: false });
+      const sessionId = String(req.body?.sessionId || "");
+      if (!/^[a-f0-9-]{20,80}$/i.test(sessionId)) {
+        return res.status(400).json({ msg: "A valid visit session is required." });
       }
 
       const userRef = db.collection("users").doc(uid);
       const userSnap = await userRef.get();
-
       if (!userSnap.exists) {
         return res.status(404).json({ msg: "User account not found." });
       }
 
+      // One private session record per signed-in browser tab session.
+      const sessionRef = db.collection("userSessions").doc(uid + "_" + sessionId);
+      const sessionSnap = await sessionRef.get();
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      if (!sessionSnap.exists) {
+        await sessionRef.set({
+          uid,
+          sessionId,
+          startedAt: now,
+          lastSeenAt: now
+        });
+      } else {
+        await sessionRef.set({ lastSeenAt: now }, { merge: true });
+      }
+
+      // Keep the existing five-minute throttle for the user's latest activity.
+      const nowMs = Date.now();
+      const lastWrite = activityHeartbeatCache.get(uid) || 0;
+      if (nowMs - lastWrite < 5 * 60 * 1000) {
+        return res.json({ status: true, recorded: true, newSession: !sessionSnap.exists });
+      }
+
       await userRef.set({
-        lastActiveAt: admin.firestore.FieldValue.serverTimestamp()
+        lastActiveAt: now
       }, { merge: true });
 
       activityHeartbeatCache.set(uid, nowMs);
-      return res.json({ status: true, recorded: true });
+      return res.json({ status: true, recorded: true, newSession: !sessionSnap.exists });
     } catch (error) {
       console.error("Activity heartbeat error:", error);
       return res.status(500).json({ msg: "Unable to record activity." });
@@ -694,6 +715,35 @@ app.get(
         });
       }
 
+      const sessionsSnapshot = await db.collection("userSessions").get();
+      const sessions = sessionsSnapshot.docs.map(doc => doc.data());
+      const sessionsByUser = new Map();
+      sessions.forEach(session => {
+        if (!session.uid) return;
+        sessionsByUser.set(session.uid, (sessionsByUser.get(session.uid) || 0) + 1);
+      });
+      const returningUsers = usersList
+        .filter(user => (sessionsByUser.get(user.uid) || 0) >= 2)
+        .map(user => ({
+          name: user.name || user.displayName || "FundsIQ user",
+          email: user.email || "",
+          visits: sessionsByUser.get(user.uid) || 0,
+          firstVisit: (() => {
+            const dates = sessions.filter(item => item.uid === user.uid)
+              .map(item => asDate(item.startedAt)).filter(Boolean).sort((a, b) => a - b);
+            return dates.length ? dates[0].toISOString() : null;
+          })(),
+          lastVisit: (() => {
+            const dates = sessions.filter(item => item.uid === user.uid)
+              .map(item => asDate(item.lastSeenAt)).filter(Boolean).sort((a, b) => b - a);
+            return dates.length ? dates[0].toISOString() : null;
+          })()
+        }))
+        .sort((a, b) => b.visits - a.visits);
+
+      const usersWithSessions = usersList.filter(user => sessionsByUser.has(user.uid)).length;
+      const newTrackedUsers = Math.max(0, usersWithSessions - returningUsers.length);
+
       const cbtParticipantsTracked = usersList.filter(
         user => Number(user.completedTests || 0) > 0
       ).length;
@@ -732,7 +782,12 @@ app.get(
           active24h: activeUsers24h,
           active7d: activeUsers7d,
           active30d: activeUsers30d,
-          note: "Active users are signed-in accounts recorded using FundsIQ since activity tracking launched."
+          trackedUsers: usersWithSessions,
+          newTrackedUsers,
+          returningUsersCount: returningUsers.length,
+          returningUsers,
+          totalTrackedVisits: sessions.length,
+          note: "Visits are separate signed-in browser-tab sessions recorded from this tracking release. Earlier visits are not available."
         }
       });
     } catch (error) {
