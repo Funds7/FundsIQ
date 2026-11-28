@@ -62,6 +62,9 @@
         <article class="card"><div class="label">Active users · 24 hours</div><div class="value" id="active24h">—</div><div class="hint">Signed-in users seen in the last 24 hours</div></article>
         <article class="card"><div class="label">Active users · 7 days</div><div class="value" id="active7d">—</div><div class="hint">Unique users seen in the last 7 days</div></article>
         <article class="card"><div class="label">Active users · 30 days</div><div class="value" id="active30d">—</div><div class="hint">Unique users seen in the last 30 days</div></article>
+        <article class="card"><div class="label">Returning users</div><div class="value" id="returningUsersCount">—</div><div class="hint">Users with at least two tracked visits</div></article>
+        <article class="card"><div class="label">New tracked users</div><div class="value" id="newTrackedUsers">—</div><div class="hint">Users with one tracked visit so far</div></article>
+        <article class="card"><div class="label">Tracked visits</div><div class="value" id="totalTrackedVisits">—</div><div class="hint">Separate signed-in browser-tab sessions</div></article>
       </div>
 
       <div class="two">
@@ -94,6 +97,17 @@
           <table>
             <thead><tr><th>Marketer</th><th>Referral code</th><th>Registrations</th><th>Premium sales</th><th>Conversion</th><th>Commission earned</th></tr></thead>
             <tbody id="marketerRows"><tr><td colspan="6">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top:14px">
+        <h2>Returning users</h2>
+        <p class="muted" id="returningUsersNote">People with at least two tracked visits since this feature launched.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>User</th><th>Tracked visits</th><th>First tracked visit</th><th>Last seen</th></tr></thead>
+            <tbody id="returningUserRows"><tr><td colspan="4">Loading…</td></tr></tbody>
           </table>
         </div>
       </section>
